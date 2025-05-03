@@ -1,6 +1,6 @@
-# 🎵 Mood Music
+# 🎵 MoodMusic
 
-Mood Music is a beautifully simple iOS app that recommends songs based on how you're feeling. Tap your mood, get a vibe — it’s that easy.
+MoodMusic is a beautifully simple iOS app that recommends songs based on how you're feeling. Tap your mood, get a vibe — it’s that easy.
 
 ![screenshot](Assets/screenshot.png) <!-- Replace with your actual screenshot path -->
 
@@ -35,9 +35,29 @@ Mood Music is a beautifully simple iOS app that recommends songs based on how yo
 
 ---
 
+## 🔐 API Key Setup (Required!)
+
+To clone and run MoodMusic locally, you **must provide your own OpenAI API key**. Without it, the app will not function.
+
+### 🔧 How to set your key in Xcode:
+
+1. Go to `Product > Scheme > Edit Scheme`
+2. Under the `Run` section, open the **Arguments** tab
+3. In the **Environment Variables** section, add:
+
+Name: OPENAI_API_KEY
+
+Value: sk-…your key here…
+
+You can get your API key from [OpenAI’s dashboard](https://platform.openai.com/account/api-keys)
+
+> ‼️**Important:** Never commit your API key to source control.
+
+---
+
 ## 🔐 Privacy
 
-Mood Music does **not** collect, store, or track any personal user data. All mood and song suggestions are processed locally or via third-party APIs.
+MoodMusic does **not** collect, store, or track any personal user data. All mood and song suggestions are processed locally or via third-party APIs.
 
 ---
 
