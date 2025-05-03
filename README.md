@@ -2,8 +2,6 @@
 
 MoodMusic is a beautifully simple iOS app that recommends songs based on how you're feeling. Tap your mood, get a vibe — it’s that easy.
 
-![screenshot](Assets/screenshot.png) <!-- Replace with your actual screenshot path -->
-
 ---
 
 ## ✨ Features
@@ -19,9 +17,9 @@ MoodMusic is a beautifully simple iOS app that recommends songs based on how you
 
 ## 📱 Screenshots
 
-| Mood Selector | Song Card | Calendar View |
-|---------------|-----------|----------------|
-| *(Insert image)* | *(Insert image)* | *(Insert image)* |
+| Mood Selector | Song Card |
+|---------------|-----------|
+| <img src="https://github.com/user-attachments/assets/2826ad28-97a0-417f-98e3-d0aeda84d902" width="400" alt="Screenshot 1 iPhone 15"> | <img src="https://github.com/user-attachments/assets/2bbf25e4-7b5a-4335-b274-2ebe0a96fb77" width="400" alt="Screenshot 2 iPhone 15"> |
 
 ---
 
