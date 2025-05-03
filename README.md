@@ -7,7 +7,7 @@ MoodMusic is a beautifully simple iOS app that recommends songs based on how you
 ## ✨ Features
 
 - 🎧 Mood-based song suggestions
-- 💡 Uses OpenAI to generate unique music recommendations
+- 💡 Uses OpenAI API for GPT-40-mini model to generate unique music recommendations
 - 🎨 Colorful mood selector with emoji interface
 - 🗓️ Mood calendar to track your week
 - 🖼️ Song cards with cover art & Apple Music link
