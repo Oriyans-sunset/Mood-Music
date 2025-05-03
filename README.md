@@ -55,7 +55,7 @@ You can get your API key from [OpenAI’s dashboard](https://platform.openai.com
 
 ## 🔐 Privacy
 
-MoodMusic does **not** collect, store, or track any personal user data. All mood and song suggestions are processed locally or via third-party APIs.
+MoodMusic does **not** collect, store, or track any personal user data. All mood and song suggestions are processed via third-party APIs without any form of user tracking.
 
 ---
 
