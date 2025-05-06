@@ -32,11 +32,6 @@ class SongHistoryManager {
     }
 
     static func isDuplicate(_ newEntry: SongSuggestionHistoryEntry) -> Bool {
-        print("🧪 Comparing against history:")
-        for past in loadHistory() {
-            print("- \(past.title) by \(past.artist)")
-        }
-        print("🔍 New entry: \(newEntry.title) by \(newEntry.artist)")
         return loadHistory().contains(newEntry)
     }
 

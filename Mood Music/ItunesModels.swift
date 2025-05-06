@@ -6,6 +6,8 @@
 //
 
 struct iTunesSongResult: Codable {
+    let trackName: String      // Song title
+    let artistName: String     // Artist
     let artworkUrl100: String
     let trackViewUrl: String
 }
@@ -13,4 +15,3 @@ struct iTunesSongResult: Codable {
 struct iTunesSearchResponse: Codable {
     let results: [iTunesSongResult]
 }
-

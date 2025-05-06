@@ -7,12 +7,6 @@
 
 import Foundation
 
-#if EXTERNAL_CONFIG
-let apiKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? ""
-#else
-let apiKey = "PLACEHOLDER_IF_NEEDED"
-#endif
-
 struct APIService {
     
     static func getSongSuggestion(for moodText: String, completion: @escaping (String?) -> Void) {
@@ -23,6 +17,7 @@ struct APIService {
           "artist": "Artist Name"
         }
         """
+        let apiKey = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String ?? ""
         
         let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
         
@@ -117,35 +112,77 @@ struct APIService {
     }
 
     
-    static func searchSongOniTunes(song: String, artist: String, completion: @escaping (iTunesSongResult?) -> Void) {
-        
-        let countryCode = Locale.current.region?.identifier ?? "US" // detect country for accurate url for ituens search
-        
-        let query = "\(song) \(artist)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let urlString = "https://itunes.apple.com/search?term=\(query)&country=\(countryCode)&entity=song&limit=1"
-        
-        guard let url = URL(string: urlString) else {
-            completion(nil)
-            return
+    static func searchSongOniTunes(song: String,
+                                   artist: String,
+                                   completion: @escaping (iTunesSongResult?) -> Void) {
+
+        // Helper for building a search URL
+        func makeURL(term: String, attribute: String) -> URL? {
+            let encoded = term.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            // we default to U.S. store here; you can swap in Locale.current if you prefer
+            return URL(string: "https://itunes.apple.com/search?term=\(encoded)&media=music&attribute=\(attribute)&limit=25&country=US")
         }
-        
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            if let error = error {
-                completion(nil)
-                return
+
+        // Local copies to hold results so that we can fall back gracefully
+        var titleResults: [iTunesSongResult] = []
+
+        // 1️⃣ TITLE‑ONLY SEARCH
+        guard let titleURL = makeURL(term: song, attribute: "songTerm") else {
+            completion(nil); return
+        }
+
+        func runArtistSearch() {
+            // 2️⃣ ARTIST‑ONLY SEARCH
+            guard let artistURL = makeURL(term: artist, attribute: "artistTerm") else {
+                // No artist URL – fall back to *any* title result if we have one
+                completion(titleResults.first); return
             }
-            
-            guard let data = data else {
-                completion(nil)
-                return
+
+            URLSession.shared.dataTask(with: artistURL) { data, _, _ in
+                guard
+                    let data = data,
+                    let response = try? JSONDecoder().decode(iTunesSearchResponse.self, from: data)
+                else {
+                    // Network / decode error – return first title result if available
+                    completion(titleResults.first); return
+                }
+
+                // Look for a track whose *title* matches (case‑insensitive)
+                if let exactPair = response.results.first(where: {
+                    $0.trackName.caseInsensitiveCompare(song) == .orderedSame
+                }) {
+                    completion(exactPair)
+                } else if !titleResults.isEmpty {
+                    // No exact pair – return the best title‑only hit
+                    completion(titleResults.first)
+                } else {
+                    // Finally, give at least *something* from the artist search
+                    completion(response.results.first)
+                }
+            }.resume()
+        }
+
+        // Fire the title‑only search first
+        URLSession.shared.dataTask(with: titleURL) { data, _, _ in
+            guard
+                let data = data,
+                let response = try? JSONDecoder().decode(iTunesSearchResponse.self, from: data)
+            else {
+                // If that failed outright, move straight to artist search
+                runArtistSearch(); return
             }
-            
-            do {
-                let searchResponse = try JSONDecoder().decode(iTunesSearchResponse.self, from: data)
-                
-                completion(searchResponse.results.first)
-            } catch {
-                completion(nil)
+
+            // Save all title results for potential fallback
+            titleResults = response.results
+
+            // Look for the exact artist match
+            if let exact = response.results.first(where: {
+                $0.artistName.caseInsensitiveCompare(artist) == .orderedSame
+            }) {
+                completion(exact)
+            } else {
+                // No exact – try artist search next
+                runArtistSearch()
             }
         }.resume()
     }

@@ -29,7 +29,7 @@ struct ContentView: View {
     
     @State private var hasSubmittedToday: Bool = {
         if let saved = UserDefaults.standard.object(forKey: lastCheckInKey) as? Date {
-            return Calendar.current.isDateInToday(saved) // DO NOT FORGET TO CHANGE
+            return Calendar.current.isDateInToday(saved)
         }
         return false
     }()
@@ -83,8 +83,6 @@ struct ContentView: View {
                         GridItem(.flexible())
                     ]
                     
-                    
-                    
                     let moodColours: [String: Color] = [
                         "😊": .yellow,
                         "😐": .gray,
@@ -98,6 +96,7 @@ struct ContentView: View {
                     LazyVGrid(columns: columns, spacing: 30){
                         ForEach(Array(moodLabels.keys), id: \.self) { emoji in
                             Button(action: {
+                                triggerHaptic()
                                 selectedMood = emoji
                             }) {
                                 VStack(spacing: 8){
@@ -133,8 +132,8 @@ struct ContentView: View {
                             ForEach(pastWeek, id: \.day) { log in
                                 let moodColor = moodTextColours[log.moodText ?? ""] ?? .black.opacity(0.3)
                                 Button(action: {
+                                    triggerHaptic()
                                     if let entry = log.entry {
-                                        suggestedSong = "\(entry.title) - \(entry.artist)"
                                         albumArtURL = nil
                                         albumURL = nil
                                         APIService.searchSongOniTunes(song: entry.title, artist: entry.artist) { result in
@@ -142,6 +141,7 @@ struct ContentView: View {
                                                 if let result = result {
                                                     self.albumArtURL = URL(string: result.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
                                                     self.albumURL = URL(string: result.trackViewUrl)
+                                                    self.suggestedSong = "\(result.trackName) - \(result.artistName)"
                                                 }
                                             }
                                         }
@@ -170,9 +170,9 @@ struct ContentView: View {
                     // Submit button
                     Button(action :{
                         if let mood = selectedMood, let moodText = moodLabels[mood] {
-                            
+                            triggerHaptic()
                             isLoading = true
-                            
+                            // building the hisotry everytime we get a non-duplicate song suggestion, check APIServices
                             APIService.getNonDuplicateSongSuggestion(for: moodText) { result in
                                 DispatchQueue.main.async {
                                     isLoading = false
@@ -183,14 +183,16 @@ struct ContentView: View {
                                                 if let itunesResult = itunesResult {
                                                     self.albumArtURL = URL(string: itunesResult.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
                                                     self.albumURL = URL(string: itunesResult.trackViewUrl)
-                                                    
-                                                    // Save only *after* everything is ready
-                                                    let fullSuggestion = "\(suggestion.title) - \(suggestion.artist)"
+
+                                                    // Show **exactly** what we got back from Apple Music:
+                                                    let fullSuggestion = "\(itunesResult.trackName) - \(itunesResult.artistName)"
                                                     self.suggestedSong = fullSuggestion
-                                                    UserDefaults.standard.set(fullSuggestion, forKey: "savedSuggestion")
-                                                    UserDefaults.standard.set(Date(), forKey: "savedSuggestionDate")
-                                                    UserDefaults.standard.set(self.albumArtURL?.absoluteString, forKey: "savedAlbumArtURL")
-                                                    UserDefaults.standard.set(self.albumURL?.absoluteString, forKey: "savedAlbumURL")
+                                                    saveTodayAsCheckedIn()
+                                                } else {
+                                                    // If Apple returned nothing, fall back to the OpenAI suggestion
+                                                    self.albumArtURL = nil
+                                                    self.albumURL = nil
+                                                    self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
                                                     saveTodayAsCheckedIn()
                                                 }
                                             }
@@ -260,12 +262,12 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 let history = SongHistoryManager.loadHistory()
                 self.pastWeek = buildPastWeekLog(from: history)
-                loadSavedSuggestion()
+                refreshCheckInFlag()
             }
             .onAppear {
                 let history = SongHistoryManager.loadHistory()
                 self.pastWeek = buildPastWeekLog(from: history)
-                loadSavedSuggestion()
+                refreshCheckInFlag()
             }
         }
         
@@ -332,6 +334,7 @@ struct ContentView: View {
                     }
                     
                     Button(action: {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         if let url = albumURL {
                                 openURL(url)
                             }
@@ -376,32 +379,17 @@ struct ContentView: View {
         hasSubmittedToday = true
     }
     
-    private func loadSavedSuggestion() {
-        if suggestedSong == nil {
-            if let savedSuggestion = UserDefaults.standard.string(forKey: "savedSuggestion"),
-               let savedDate = UserDefaults.standard.object(forKey: "savedSuggestionDate") as? Date {
-                
-                if Calendar.current.isDateInToday(savedDate) {
-                    suggestedSong = savedSuggestion
-                    if let artworkURLString = UserDefaults.standard.string(forKey: "savedAlbumArtURL"), // get the val from UD
-                       let albumURLString = UserDefaults.standard.string(forKey: "savedAlbumURL"),
-                       let albumURL = URL(string: albumURLString), // convert the val gotten from UD to URL
-                       let artURL = URL(string: artworkURLString) {
-                        self.albumArtURL = artURL
-                        self.albumURL = albumURL
-                        print("album art is: ", artURL)
-                    }
-                } else {
-                    UserDefaults.standard.removeObject(forKey: "savedSuggestion")
-                    UserDefaults.standard.removeObject(forKey: "savedSuggestionDate")
-                    UserDefaults.standard.removeObject(forKey: "savedAlbumArtURL")
-                    UserDefaults.standard.removeObject(forKey: "savedAlbumURL")
-                    hasSubmittedToday = false
-                }
-            } else {
-                hasSubmittedToday = false
-            }
+    private func refreshCheckInFlag() {
+        if let last = UserDefaults.standard.object(forKey: Self.lastCheckInKey) as? Date {
+            hasSubmittedToday = Calendar.current.isDateInToday(last)
+        } else {
+            hasSubmittedToday = false
         }
+    }
+    
+    func triggerHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
     }
 }
 

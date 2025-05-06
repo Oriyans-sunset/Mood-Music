@@ -75,7 +75,7 @@ struct SettingsView: View {
             }
 
             Section(header: Text("Support")) {
-                Link("Feedback", destination: URL(string: "mailto:ryzenlyve@gmail.com?subject=Mood%20Music%20Feedback")!)
+                Link("Feedback", destination: URL(string: "mailto:ryzenlyve@gmail.com?subject=MoodMusic%20Feedback")!)
                 
                 Link("Acknowledgements", destination: URL(string: "https://fonts.google.com/specimen/Pacifico/about")!)
             }
@@ -93,6 +93,7 @@ struct SettingsView: View {
                     .foregroundColor(.accentColor)
 
                 Text("MoodMusic does not collect, store, or share any personal data. All song suggestions are processed through third-party APIs without any form of user tracking.")
+                    .multilineTextAlignment(.center)
                     .padding()
 
                 Button(action: {
