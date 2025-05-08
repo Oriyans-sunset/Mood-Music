@@ -31,9 +31,20 @@ class SongHistoryManager {
         }
     }
 
+   
     static func isDuplicate(_ newEntry: SongSuggestionHistoryEntry) -> Bool {
-        return loadHistory().contains(newEntry)
+        //print("🧪 Comparing against history:")
+        for past in loadHistory() {
+            //print("- \(past.title) by \(past.artist)")
+            if past.title == newEntry.title && past.artist == newEntry.artist {
+                //print("🔍 Duplicate found for \(newEntry.title) by \(newEntry.artist)")
+                return true
+            }
+        }
+        return false
     }
+
+    
 
     static func addToHistory(_ entry: SongSuggestionHistoryEntry) {
         var history = loadHistory()

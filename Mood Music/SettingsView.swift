@@ -79,6 +79,13 @@ struct SettingsView: View {
                 
                 Link("Acknowledgements", destination: URL(string: "https://fonts.google.com/specimen/Pacifico/about")!)
             }
+        
+                Text("Shout out to my best friend for the design inspiration!💛")
+                    .font(.footnote)
+                    .foregroundColor(.gray)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(1)
+            
         }
         .navigationTitle("Settings")
         .sheet(isPresented: $showingPrivacy) {

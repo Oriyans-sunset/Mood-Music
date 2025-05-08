@@ -38,7 +38,7 @@ struct APIService {
         ]
         
         guard let jsonData = try? JSONSerialization.data(withJSONObject: body) else {
-            print("Failed to encode body")
+            //print("Failed to encode body")
             completion(nil)
             return
         }
@@ -47,13 +47,13 @@ struct APIService {
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                print("Network error: \(error.localizedDescription)")
+                //print("Network error: \(error.localizedDescription)")
                 completion(nil)
                 return
             }
             
             guard let data = data else {
-                print("No data received")
+                //print("No data received")
                 completion(nil)
                 return
             }
@@ -66,8 +66,8 @@ struct APIService {
                     completion(nil)
                 }
             } catch {
-                print("Error decoding OpenAI response: \(error)")
-                print("Raw response: \(String(data: data, encoding: .utf8) ?? "")")
+                //print("Error decoding OpenAI response: \(error)")
+                //print("Raw response: \(String(data: data, encoding: .utf8) ?? "")")
                 completion(nil)
             }
         }.resume()
@@ -92,13 +92,13 @@ struct APIService {
                                                        emoji: moodText)
                 
                 if SongHistoryManager.isDuplicate(entry) {
-                    print("attempt")
+                    //print("attempt")
                     attempts += 1
                     if attempts < maxRetries {
-                        print("Duplicate found: \(entry). Retrying (\(attempts)/\(maxRetries))...")
+                        //print("Duplicate found: \(entry). Retrying (\(attempts)/\(maxRetries))...")
                         tryFetch()
                     } else {
-                        print("No unique suggestion found after \(maxRetries) attempts.")
+                        //print("No unique suggestion found after \(maxRetries) attempts.")
                         completion(nil)
                     }
                 } else {

@@ -6,7 +6,7 @@
 //
 import Foundation
 
-struct SongSuggestionHistoryEntry: Codable, Equatable {
+struct SongSuggestionHistoryEntry: Codable, Hashable {
     let title: String
     let artist: String
     let date: Date

@@ -30,3 +30,4 @@ fastlane/screenshots
 *.env
 Mood Music.xcodeproj/xcshareddata/xcschemes/Mood Music.xcscheme
 *.xcscheme
+*.xcscheme
