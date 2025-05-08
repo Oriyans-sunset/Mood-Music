@@ -59,13 +59,6 @@ MoodMusic does **not** collect, store, or track any personal user data. All mood
 
 ---
 
-## 🧪 TestFlight
-
-Once beta testing begins, you’ll be able to try **Mood Music** via [TestFlight](https://testflight.apple.com/join/your-link-here).  
-_(Link will be available after TestFlight setup.)_
-
----
-
 ## 🙌 Acknowledgements
 
 - 🎨 Font: [Pacifico by Vernon Adams](https://fonts.google.com/specimen/Pacifico/about)
