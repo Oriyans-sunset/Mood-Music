@@ -11,13 +11,16 @@ struct APIService {
     
     static func getSongSuggestion(for moodText: String, completion: @escaping (String?) -> Void) {
         let prompt = """
-        Give me a fun and underrated '\(moodText)' mood song recommendation. Try not to repeat popular choices. Return only a JSON object in this format:
+        Give me a fun and underrated '\(moodText)' mood song recommendation. Try not to repeat popular choices. Return only a JSON object in this format with **no markdown, no explanation**:
         {
           "title": "Song Title",
           "artist": "Artist Name"
         }
         """
         let apiKey = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String ?? ""
+        if apiKey.isEmpty {
+            print("❌ OPENAI_API_KEY is missing! Make sure Secrets.xcconfig exists and is configured.")
+        }
         
         let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
         
@@ -75,7 +78,7 @@ struct APIService {
     
     static func getNonDuplicateSongSuggestion(for moodText: String, maxRetries: Int = 3, completion: @escaping (SongSuggestion?) -> Void) {
         var attempts = 0
-
+        
         func tryFetch() {
             // call the fucntion to get the suggestion
             getSongSuggestion(for: moodText) { result in

@@ -31,3 +31,4 @@ fastlane/screenshots
 Mood Music.xcodeproj/xcshareddata/xcschemes/Mood Music.xcscheme
 *.xcscheme
 *.xcscheme
+Mood Music/Secrets.xcconfig
