@@ -9,7 +9,7 @@ import Foundation
 
 class SongHistoryManager {
     private static let historyFilename = "song_history.json"
-    private static let maxEntries = 14
+    private static let maxEntries = 273
 
     private static var fileURL: URL? {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(historyFilename)

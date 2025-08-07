@@ -27,6 +27,7 @@ struct ContentView: View {
     // used multiple times so we made it a var
     private static let lastCheckInKey = "lastCheckInDate"
     
+    
     @State private var hasSubmittedToday: Bool = {
         if let saved = UserDefaults.standard.object(forKey: lastCheckInKey) as? Date {
             return Calendar.current.isDateInToday(saved)
@@ -54,6 +55,7 @@ struct ContentView: View {
                             .multilineTextAlignment(.center)
                             .font(.custom("Pacifico-Regular", size: 50))
                             .fontWeight(.bold)
+                            .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                             .foregroundColor(.mint)
                             .frame(maxWidth: .infinity)
                             .padding(.top, 5)
@@ -61,17 +63,20 @@ struct ContentView: View {
                         // Absolute position for settings button
                         VStack {
                             HStack {
+                                Spacer()
                                 Button(action: {
                                     path.append(Route.settings)
                                 }) {
                                     Image(systemName: "gear")
-                                        .font(.system(size: 24))
+                                        .font(.system(size: 20, weight: .medium))
                                         .foregroundColor(.black)
+                                        .frame(width: 40, height: 40)
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(Circle())
+                                        .shadow(radius: 2)
                                 }
-                                .padding(.leading, 20)
-                                .padding(.top, 5)
-                                
-                                Spacer()
+                                .padding(.trailing, 16)
+                                .padding(.top, 12)
                             }
                             Spacer()
                         }
@@ -105,6 +110,7 @@ struct ContentView: View {
                                         .frame(width: 100, height: 100)
                                         .background(moodColours[emoji, default: .gray].opacity(0.8))
                                         .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                                     // highlight when pressed
                                         .overlay(
                                             Circle()
@@ -150,11 +156,13 @@ struct ContentView: View {
                                     ZStack {
                                         Circle()
                                             .fill(moodColor)
-                                            .frame(width: 32, height: 32)
+                                            .frame(width: 40, height: 40)
+                                            .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 2)
                                         
                                         Text(log.day)
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
+                                            .font(.callout)
+                                            .fontWeight(.semibold)
+                                            .monospacedDigit()
                                             .foregroundColor(.white)
                                     }
                                     .frame(maxWidth: .infinity)
@@ -162,9 +170,10 @@ struct ContentView: View {
                                     .opacity(log.entry == nil ? 0.5 : 1.0)
                             }
                         }
-                        .padding()
-                        .background(.black)
-                        .cornerRadius(20)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(24)
+                        .shadow(radius: 4)
                     }.padding()
                     
                     // Submit button
@@ -188,12 +197,16 @@ struct ContentView: View {
                                                     let fullSuggestion = "\(itunesResult.trackName) - \(itunesResult.artistName)"
                                                     self.suggestedSong = fullSuggestion
                                                     saveTodayAsCheckedIn()
+                                                    let history = SongHistoryManager.loadHistory()
+                                                    self.pastWeek = buildPastWeekLog(from: history)
                                                 } else {
                                                     // If Apple returned nothing, fall back to the OpenAI suggestion
                                                     self.albumArtURL = nil
                                                     self.albumURL = nil
                                                     self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
                                                     saveTodayAsCheckedIn()
+                                                    let history = SongHistoryManager.loadHistory()
+                                                    self.pastWeek = buildPastWeekLog(from: history)
                                                 }
                                             }
                                         }
@@ -208,6 +221,7 @@ struct ContentView: View {
                             .fontWeight(.bold)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
+                            .shadow(color: .black, radius: 6)
                             .padding()
                             .background(.black)
                             .cornerRadius(20)
@@ -279,18 +293,18 @@ struct ContentView: View {
         let albumArtURL: URL?
         let albumURL: URL?
         let onClose: () -> Void
-        
+
         @Environment(\.openURL) private var openURL
-        
+
         var body: some View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Today's Pick🔥")
                         .fontWeight(.bold)
                         .foregroundColor(.black)
-                    
+
                     Spacer()
-                    
+
                     Button(action: {
                         onClose()
                     }) {
@@ -299,45 +313,51 @@ struct ContentView: View {
                             .foregroundColor(.gray)
                     }
                 }
-                
+
                 if let url = albumArtURL {
-                                AsyncImage(url: url) { image in
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(maxHeight: 280)
-                                        .clipped()
-                                        .cornerRadius(16)
-                                } placeholder: {
-                                    Color.gray.opacity(0.3)
-                                        .frame(maxHeight: 280)
-                                        .cornerRadius(16)
-                                }
-                            } else {
-                                Color.gray.opacity(0.3)
-                                    .frame(maxHeight: 280)
-                                    .cornerRadius(16)
-                            }
-                
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(maxHeight: 280)
+                                .clipped()
+                                .cornerRadius(16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                                )
+                                .shadow(color: .black.opacity(0.25), radius: 30, x: 0, y: 12)
+                        } else {
+                            Color.gray.opacity(0.3)
+                                .frame(maxHeight: 280)
+                                .cornerRadius(16)
+                        }
+                    }
+                } else {
+                    Color.gray.opacity(0.3)
+                        .frame(maxHeight: 280)
+                        .cornerRadius(16)
+                }
+
                 HStack {
                     VStack (alignment: .leading) {
                         Text(title)
-                            .font(.title2)
-                            .fontWeight(.bold)
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
                             .foregroundColor(.black)
-                        
-                        
-                            Text(artist)
-                                .multilineTextAlignment(.leading)
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
+                            .lineLimit(2)
+
+                        Text(artist.uppercased())
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.gray)
                     }
-                    
+
                     Button(action: {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         if let url = albumURL {
-                                openURL(url)
-                            }
+                            openURL(url)
+                        }
                     }) {
                         VStack(alignment: .trailing) {
                             Image(systemName: "arrow.up.right.square.fill")
@@ -360,16 +380,13 @@ struct ContentView: View {
                         }.frame(maxWidth: .infinity, alignment: .trailing)
                     }.disabled(albumURL == nil)
                 }
-                
-                
-                
             }
             .padding()
-            .background(.white)
+            .background(Color.white)
+            .shadow(color: .black.opacity(0.05), radius: 20, x: 0, y: 10)
             .cornerRadius(20)
             .shadow(radius: 10)
             .padding(.horizontal)
-            
         }
     }
     
@@ -391,6 +408,7 @@ struct ContentView: View {
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
     }
+    
 }
 
 // gives "M", "T", "W" etc. from a Date
@@ -429,6 +447,19 @@ func buildPastWeekLog(from history: [SongSuggestionHistoryEntry]) -> [MoodLog] {
 
     return result
 }
+
+extension Image {
+    func asUIImage() -> UIImage? {
+        let mirror = Mirror(reflecting: self)
+        for child in mirror.children {
+            if let uiImage = child.value as? UIImage {
+                return uiImage
+            }
+        }
+        return nil
+    }
+}
+
 
                        
 #Preview {
