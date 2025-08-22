@@ -37,14 +37,20 @@ struct ContentView: View {
     
     // varible defined for opneing external links
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
+    //Color.black.opacity(0.1), Color.purple.opacity(0.7)]
+    //[Color.blue.opacity(0.7), Color.purple.opacity(0.7), Color.teal.opacity(0.6)]
     
     var body: some View {
         NavigationStack(path: $path) {
             ZStack{
                 LinearGradient(
-                    gradient: Gradient(colors: [.white, .mint]),
-                    startPoint: .top,
-                    endPoint: .bottom
+                    gradient: Gradient(colors: colorScheme == .dark
+                            ? [Color.black.opacity(0.1), Color.purple.opacity(0.7)] // dark mode
+                            : [Color.mint.opacity(0.6), Color.pink.opacity(0.4)]  // light mode
+                        ),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
                 
@@ -55,8 +61,8 @@ struct ContentView: View {
                             .multilineTextAlignment(.center)
                             .font(.custom("Pacifico-Regular", size: 50))
                             .fontWeight(.bold)
-                            .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
-                            .foregroundColor(.mint)
+                            .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)
+                            .foregroundColor(.primary)
                             .frame(maxWidth: .infinity)
                             .padding(.top, 5)
                         
@@ -69,7 +75,7 @@ struct ContentView: View {
                                 }) {
                                     Image(systemName: "gear")
                                         .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(.black)
+                                        .foregroundColor(.primary)
                                         .frame(width: 40, height: 40)
                                         .background(.ultraThinMaterial)
                                         .clipShape(Circle())
@@ -97,6 +103,15 @@ struct ContentView: View {
                         "😣": .red
                     ]
                     
+                    let moodGradientColors: [String: [Color]] = [
+                        "😊": [Color.yellow, Color.orange],
+                        "😐": [Color.teal, Color.blue],
+                        "😔": [Color.blue, Color.indigo],
+                        "🤩": [Color.orange, Color.pink],
+                        "🥱": [Color.indigo, Color.purple],
+                        "😣": [Color.red, Color.orange]
+                    ]
+                    
                     // emoji buttons
                     LazyVGrid(columns: columns, spacing: 30){
                         ForEach(Array(moodLabels.keys), id: \.self) { emoji in
@@ -108,13 +123,25 @@ struct ContentView: View {
                                     Text(emoji)
                                         .font(.system(size: 50))
                                         .frame(width: 100, height: 100)
-                                        .background(moodColours[emoji, default: .gray].opacity(0.8))
+                                        .background(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: moodGradientColors[emoji, default: [Color.gray.opacity(0.6), Color.gray]]),
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
                                         .clipShape(Circle())
-                                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-                                    // highlight when pressed
+                                        .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 3)
                                         .overlay(
                                             Circle()
-                                                .stroke(Color.black, lineWidth: emoji == selectedMood ? 3 : 0)
+                                                .stroke(
+                                                    LinearGradient(
+                                                        gradient: Gradient(colors: [Color.white.opacity(0.9), Color.white.opacity(0.3)]),
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    ),
+                                                    lineWidth: emoji == selectedMood ? 4 : 0
+                                                )
                                         )
                                         .scaleEffect(emoji == selectedMood ? 1.1 : 1.0)
                                         .animation(.easeOut(duration: 0.15), value: selectedMood)
@@ -122,11 +149,8 @@ struct ContentView: View {
                                     Text(moodLabels[emoji, default: "mood"])
                                         .font(.subheadline)
                                         .fontWeight(.medium)
-                                        .foregroundColor(.black)
-                                    
-                                    
+                                        .foregroundColor(.primary)
                                 }
-                                
                             }.disabled(hasSubmittedToday)
                         }
                     }
@@ -173,7 +197,18 @@ struct ContentView: View {
                         .padding(8)
                         .background(.ultraThinMaterial)
                         .cornerRadius(24)
-                        .shadow(radius: 4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24)
+                                .stroke(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [Color.white.opacity(0.6), Color.white.opacity(0.1)]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
                     }.padding()
                     
                     // Submit button
@@ -219,12 +254,20 @@ struct ContentView: View {
                         Text(hasSubmittedToday ? "Come back tomorrow!" : "Submit")
                             .font(.system(size: 20))
                             .fontWeight(.bold)
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .frame(maxWidth: .infinity)
-                            .shadow(color: .black, radius: 6)
                             .padding()
-                            .background(.black)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: colorScheme == .dark
+                                        ? [Color.indigo.opacity(0.9), Color.blue.opacity(0.9)]
+                                        : [Color.blue.opacity(0.9), Color.teal.opacity(0.9)]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
                             .cornerRadius(20)
+                            .shadow(color: (colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.2)), radius: 10, x: 0, y: 6)
                     }
                     .padding(.horizontal)
                     .disabled(hasSubmittedToday || selectedMood == nil)
@@ -258,13 +301,14 @@ struct ContentView: View {
                 
                 // what to show if data is being fetch
                 if isLoading {
-                    Color.black.opacity(0.3)
+                    Color.black.opacity(0.35)
                         .ignoresSafeArea()
                     
                     ProgressView("Generating Suggestion...")
                         .progressViewStyle(CircularProgressViewStyle())
                         .scaleEffect(1.5)
                         .fontWeight(.bold)
+                        .foregroundColor(.white)
                 }
             }
             .navigationDestination(for: Route.self) { route in
@@ -295,13 +339,16 @@ struct ContentView: View {
         let onClose: () -> Void
 
         @Environment(\.openURL) private var openURL
+        @Environment(\.colorScheme) private var colorScheme
+        @State private var copiedTitle = false
+        @State private var copiedArtist = false
 
         var body: some View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Today's Pick🔥")
                         .fontWeight(.bold)
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
 
                     Spacer()
 
@@ -310,7 +357,7 @@ struct ContentView: View {
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title)
-                            .foregroundColor(.gray)
+                            .foregroundColor(.secondary)
                     }
                 }
 
@@ -341,16 +388,71 @@ struct ContentView: View {
                 }
 
                 HStack {
-                    VStack (alignment: .leading) {
-                        Text(title)
-                            .font(.system(size: 20, weight: .semibold, design: .rounded))
-                            .foregroundColor(.black)
-                            .lineLimit(2)
-
-                        Text(artist.uppercased())
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.gray)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(title)
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                .foregroundColor(.primary)
+                                .lineLimit(2)
+                            Button(action: {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                UIPasteboard.general.string = title
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                    copiedTitle = true
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                                    withAnimation(.easeOut(duration: 0.2)) { copiedTitle = false }
+                                }
+                            }) {
+                                ZStack {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 14))
+                                        .opacity(copiedTitle ? 0.0 : 1.0)
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.green)
+                                        .opacity(copiedTitle ? 1.0 : 0.0)
+                                        .scaleEffect(copiedTitle ? 1.1 : 0.8)
+                                }
+                            }
+                            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: copiedTitle)
+                            .accessibilityLabel("Copy to clipboard")
+#if swift(>=5.9)
+                            .sensoryFeedback(.success, trigger: copiedTitle)
+#endif
+                        }
+                        HStack {
+                            Text(artist.uppercased())
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                            Button(action: {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                UIPasteboard.general.string = artist
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                    copiedArtist = true
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                                    withAnimation(.easeOut(duration: 0.2)) { copiedArtist = false }
+                                }
+                            }) {
+                                ZStack {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 12))
+                                        .opacity(copiedArtist ? 0.0 : 1.0)
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.green)
+                                        .opacity(copiedArtist ? 1.0 : 0.0)
+                                        .scaleEffect(copiedArtist ? 1.1 : 0.8)
+                                }
+                            }
+                            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: copiedArtist)
+                            .accessibilityLabel("Copy to clipboard")
+#if swift(>=5.9)
+                            .sensoryFeedback(.success, trigger: copiedArtist)
+#endif
+                        }
                     }
 
                     Button(action: {
@@ -382,7 +484,7 @@ struct ContentView: View {
                 }
             }
             .padding()
-            .background(Color.white)
+            .background(Color(UIColor.secondarySystemBackground))
             .shadow(color: .black.opacity(0.05), radius: 20, x: 0, y: 10)
             .cornerRadius(20)
             .shadow(radius: 10)
