@@ -10,7 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @State private var showingPrivacy = false
     var body: some View {
-        
+
         let styledText: AttributedString = {
             var result = AttributedString("MoodMusic")
 
@@ -23,23 +23,28 @@ struct SettingsView: View {
 
             return result
         }()
-        
+
         List {
-            
+
             Section {
                 VStack(spacing: 8) {
                     Image("appstore")
                         .resizable()
                         .frame(width: 100, height: 100)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: 16,
+                                style: .continuous
+                            )
+                        )
                         .shadow(radius: 4)
-                    
+
                     Text(styledText)
                         .font(.title)
                         .fontWeight(.bold)
-                    .font(.title)
-                    .fontWeight(.bold)
-                    
+                        .font(.title)
+                        .fontWeight(.bold)
+
                     Text("By priyanshu")
                         .font(.headline)
                         .foregroundColor(.gray)
@@ -47,22 +52,76 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity)
                 .listRowBackground(Color.clear)
             }
-            
+
             Section(header: Text("About")) {
-                
+
                 HStack {
                     Text("App Version")
                     Spacer()
-                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "N/A")
-                        .foregroundColor(.gray)
+                    Text(
+                        Bundle.main.infoDictionary?[
+                            "CFBundleShortVersionString"
+                        ] as? String ?? "N/A"
+                    )
+                    .foregroundColor(.gray)
                 }
             }
-            
+
+            Section(header: Text("Check out my other app")) {
+                HStack(alignment: .center, spacing: 16) {
+                    Image("tagtrail")
+                        .resizable()
+                        .frame(width: 80, height: 80)
+                        .cornerRadius(8)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("TagTrail")
+                            .font(.headline)
+                        Text("Location-based reminders made easy.")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                    Spacer()
+                    Button(action: {
+                        if let url = URL(
+                            string:
+                                "https://apps.apple.com/us/app/tagtrail/id6749494325"
+                        ) {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        Text("GET")
+                            .fontWeight(.bold)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(Color.blue.opacity(0.1))
+                            )
+                    }
+                }
+                .padding(.vertical)
+                
+            }
+
             Section(header: Text("Powered By")) {
                 Text("MoodMusic uses the OpenAI API for song recommendations.")
-                Text("Song previews and album art are provided by the iTunes Search API.")
-                Link("OpenAI Terms", destination: URL(string: "https://openai.com/policies/terms-of-use")!)
-                Link("Apple Media Services Terms", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                Text(
+                    "Song previews and album art are provided by the iTunes Search API."
+                )
+                Link(
+                    "OpenAI Terms",
+                    destination: URL(
+                        string: "https://openai.com/policies/terms-of-use"
+                    )!
+                )
+                Link(
+                    "Apple Media Services Terms",
+                    destination: URL(
+                        string:
+                            "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+                    )!
+                )
             }
 
             Section(header: Text("Legal")) {
@@ -75,17 +134,29 @@ struct SettingsView: View {
             }
 
             Section(header: Text("Support")) {
-                Link("Feedback", destination: URL(string: "mailto:ryzenlyve@gmail.com?subject=MoodMusic%20Feedback")!)
-                
-                Link("Acknowledgements", destination: URL(string: "https://fonts.google.com/specimen/Pacifico/about")!)
+                Link(
+                    "Feedback",
+                    destination: URL(
+                        string:
+                            "mailto:ryzenlyve@gmail.com?subject=MoodMusic%20Feedback"
+                    )!
+                )
+
+                Link(
+                    "Acknowledgements",
+                    destination: URL(
+                        string:
+                            "https://fonts.google.com/specimen/Pacifico/about"
+                    )!
+                )
             }
-        
-                Text("Shout out to my best friend for the design inspiration!💛")
-                    .font(.footnote)
-                    .foregroundColor(.gray)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(1)
-            
+
+            Text("Shout out to my best friend for the design inspiration!💛")
+                .font(.footnote)
+                .foregroundColor(.gray)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(1)
+
         }
         .navigationTitle("Settings")
         .sheet(isPresented: $showingPrivacy) {
@@ -94,19 +165,21 @@ struct SettingsView: View {
                     .font(.title2)
                     .fontWeight(.bold)
                     .padding()
-                
+
                 Image(systemName: "hand.raised.circle.fill")
                     .font(.system(size: 100))
                     .foregroundColor(.accentColor)
 
-                Text("MoodMusic does not collect, store, or share any personal data. All song suggestions are processed through third-party APIs without any form of user tracking.")
-                    .multilineTextAlignment(.center)
-                    .padding()
+                Text(
+                    "MoodMusic does not collect, store, or share any personal data. All song suggestions are processed through third-party APIs without any form of user tracking."
+                )
+                .multilineTextAlignment(.center)
+                .padding()
 
                 Button(action: {
                     showingPrivacy = false
                 }) {
-                    
+
                     Text("Close")
                         .font(.system(size: 20))
                         .foregroundColor(.black)
@@ -122,7 +195,6 @@ struct SettingsView: View {
         }
     }
 }
-
 
 #Preview {
     SettingsView()
