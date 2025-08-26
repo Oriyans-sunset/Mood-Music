@@ -6,9 +6,19 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 struct SettingsView: View {
     @State private var showingPrivacy = false
+    @AppStorage("notificationTime") private var notificationTime: Date = {
+        var components = DateComponents()
+        components.hour = 9
+        components.minute = 0
+        return Calendar.current.date(from: components) ?? Date()
+    }()
+    @State private var notificationsEnabled = false
+    @State private var notificationsDenied = false
+    @State private var showingNotificationAlert = false
     var body: some View {
 
         let styledText: AttributedString = {
@@ -66,6 +76,49 @@ struct SettingsView: View {
                     .foregroundColor(.gray)
                 }
             }
+            
+            Section(header: Text("Daily Mood Reminder")) {
+                Toggle("Enable Reminder", isOn: $notificationsEnabled)
+                    .onChange(of: notificationsEnabled) { isOn in
+                        if isOn {
+                            NotificationManager.shared.requestPermission()
+                            NotificationManager.shared.scheduleDailyReminder(at: notificationTime)
+                            // Check current settings after requesting permission
+                            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                                DispatchQueue.main.async {
+                                    notificationsDenied = (settings.authorizationStatus == .denied)
+                                }
+                            }
+                        } else {
+                            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+                            notificationsDenied = false
+                        }
+                    }
+
+                if notificationsEnabled {
+                    DatePicker("Reminder Time", selection: $notificationTime, displayedComponents: .hourAndMinute)
+                        .onChange(of: notificationTime) { newTime in
+                            NotificationManager.shared.scheduleDailyReminder(at: newTime)
+                        }
+                }
+
+                if notificationsEnabled && notificationsDenied {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                            .onTapGesture {
+                                showingNotificationAlert = true
+                            }
+                        Text("Notifications are off in system settings.")
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                            .onTapGesture {
+                                showingNotificationAlert = true
+                            }
+                    }
+                }
+            }
+
 
             Section(header: Text("Check out my other app")) {
                 HStack(alignment: .center, spacing: 16) {
@@ -150,7 +203,7 @@ struct SettingsView: View {
                     )!
                 )
             }
-
+            
             Text("Shout out to my best friend for the design inspiration!💛")
                 .font(.footnote)
                 .foregroundColor(.gray)
@@ -158,7 +211,27 @@ struct SettingsView: View {
                 .padding(1)
 
         }
+        .onAppear {
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                DispatchQueue.main.async {
+                    notificationsDenied = (settings.authorizationStatus == .denied)
+                    notificationsEnabled = (settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional)
+
+                    // Reschedule to ensure new settings apply
+                    if notificationsEnabled {
+                        NotificationManager.shared.scheduleDailyReminder(at: notificationTime)
+                    }
+                }
+            }
+        }
         .navigationTitle("Settings")
+        .alert(isPresented: $showingNotificationAlert) {
+            Alert(
+                title: Text("Notifications Disabled"),
+                message: Text("Notifications are enabled in the app, but turned off in your system settings. You can enable them in Settings > Notifications > MoodMusic."),
+                dismissButton: .default(Text("OK"))
+            )
+        }
         .sheet(isPresented: $showingPrivacy) {
             VStack(spacing: 20) {
                 Text("Privacy Policy")
@@ -194,6 +267,7 @@ struct SettingsView: View {
             .padding()
         }
     }
+    
 }
 
 #Preview {

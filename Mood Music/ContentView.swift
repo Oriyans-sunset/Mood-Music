@@ -27,6 +27,13 @@ struct ContentView: View {
     // used multiple times so we made it a var
     private static let lastCheckInKey = "lastCheckInDate"
     
+    // MARK: - One-time update notice after app update
+    private static let lastSeenAppVersionKey = "lastSeenAppVersion"
+    @State private var showUpdateSheet: Bool = false
+
+    // Replace with your real TagTrail App Store URL (e.g. https://apps.apple.com/app/id1234567890)
+    private let tagTrailURLString: String = "https://apps.apple.com/us/app/tagtrail/id6749494325"
+    
     
     @State private var hasSubmittedToday: Bool = {
         if let saved = UserDefaults.standard.object(forKey: lastCheckInKey) as? Date {
@@ -40,6 +47,24 @@ struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     //Color.black.opacity(0.1), Color.purple.opacity(0.7)]
     //[Color.blue.opacity(0.7), Color.purple.opacity(0.7), Color.teal.opacity(0.6)]
+    
+    // MARK: - Update notice helpers
+    private func currentAppVersionString() -> String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let build   = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        return "\(version) (\(build))"
+    }
+
+    private func checkForUpdateNotice() {
+        let current = currentAppVersionString()
+        let lastSeen = UserDefaults.standard.string(forKey: Self.lastSeenAppVersionKey)
+        if lastSeen != current {
+            // First launch after install/update → show once
+            showUpdateSheet = true
+            // Persist immediately so it never shows again for this version
+            UserDefaults.standard.set(current, forKey: Self.lastSeenAppVersionKey)
+        }
+    }
     
     var body: some View {
         NavigationStack(path: $path) {
@@ -104,12 +129,12 @@ struct ContentView: View {
                     ]
                     
                     let moodGradientColors: [String: [Color]] = [
-                        "😊": [Color.yellow, Color.orange],
-                        "😐": [Color.teal, Color.blue],
+                        "😊": [Color.yellow, Color.yellow],
+                        "😐": [Color.gray, Color.gray],
                         "😔": [Color.blue, Color.indigo],
-                        "🤩": [Color.orange, Color.pink],
+                        "🤩": [Color.orange, Color.orange],
                         "🥱": [Color.indigo, Color.purple],
-                        "😣": [Color.red, Color.orange]
+                        "😣": [Color.red, Color.pink]
                     ]
                     
                     // emoji buttons
@@ -326,6 +351,14 @@ struct ContentView: View {
                 let history = SongHistoryManager.loadHistory()
                 self.pastWeek = buildPastWeekLog(from: history)
                 refreshCheckInFlag()
+                checkForUpdateNotice()
+            }
+            .sheet(isPresented: $showUpdateSheet) {
+                UpdatePromoSheet(
+                    tagTrailURL: URL(string: tagTrailURLString),
+                    onClose: { showUpdateSheet = false }
+                )
+                .presentationDetents([.medium])
             }
         }
         
@@ -511,6 +544,92 @@ struct ContentView: View {
         generator.impactOccurred()
     }
     
+}
+
+// MARK: - One-time update dialog content
+struct UpdatePromoSheet: View {
+    let tagTrailURL: URL?
+    let onClose: () -> Void
+
+    @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("What’s new in MoodMusic 🎉")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(.primary)
+                    Text("""
+                    Hey folks! Priyanshu here, I hope you guys are enjoying the app, here are the updates:
+                    
+                    • Crisper gradients & contrast
+                    • Copy buttons + haptics on the card
+                    • Set a time for reminder notifications
+                    
+                    p.s. opening links in Spotify coming soon...
+                    """)
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button(action: { onClose() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
+                .accessibilityLabel("Close update notes")
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Try my new app: TagTrail 📍")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
+                Text("Pin quick notes to places and get reminded when you’re nearby. Great for errands, campus life, and ‘don’t forget this’ moments.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            HStack(spacing: 12) {
+                Button(action: { onClose() }) {
+                    Text("Nice!")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color(UIColor.secondarySystemBackground))
+                        .cornerRadius(12)
+                }
+
+                Button(action: {
+                    if let url = tagTrailURL { openURL(url) }
+                    onClose()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.right.square.fill")
+                        Text("TagTrail")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: colorScheme == .dark
+                                ? [Color.indigo.opacity(0.95), Color.blue.opacity(0.9)]
+                                : [Color.blue.opacity(0.95), Color.teal.opacity(0.9)]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+            }
+        }
+        .padding(20)
+    }
 }
 
 // gives "M", "T", "W" etc. from a Date
