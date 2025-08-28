@@ -13,6 +13,7 @@ enum Route: Hashable {
 
 struct ContentView: View {
     
+    @AppStorage("preferredMusicProvider") private var preferredMusicProvider: String = "Apple Music"
     @State private var path = NavigationPath()
 
     @State private var albumArtURL: URL? = nil
@@ -186,22 +187,7 @@ struct ContentView: View {
                         HStack(spacing: 12){
                             ForEach(pastWeek, id: \.day) { log in
                                 let moodColor = moodTextColours[log.moodText ?? ""] ?? .black.opacity(0.3)
-                                Button(action: {
-                                    triggerHaptic()
-                                    if let entry = log.entry {
-                                        albumArtURL = nil
-                                        albumURL = nil
-                                        APIService.searchSongOniTunes(song: entry.title, artist: entry.artist) { result in
-                                            DispatchQueue.main.async {
-                                                if let result = result {
-                                                    self.albumArtURL = URL(string: result.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
-                                                    self.albumURL = URL(string: result.trackViewUrl)
-                                                    self.suggestedSong = "\(result.trackName) - \(result.artistName)"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }) {
+                                Button(action: { handleCalendarTap(log: log) }) {
                                     ZStack {
                                         Circle()
                                             .fill(moodColor)
@@ -237,43 +223,9 @@ struct ContentView: View {
                     }.padding()
                     
                     // Submit button
-                    Button(action :{
+                    Button(action: {
                         if let mood = selectedMood, let moodText = moodLabels[mood] {
-                            triggerHaptic()
-                            isLoading = true
-                            // building the hisotry everytime we get a non-duplicate song suggestion, check APIServices
-                            APIService.getNonDuplicateSongSuggestion(for: moodText) { result in
-                                DispatchQueue.main.async {
-                                    isLoading = false
-                                    if let suggestion = result {
-                                        
-                                        APIService.searchSongOniTunes(song: suggestion.title, artist: suggestion.artist) { itunesResult in
-                                            DispatchQueue.main.async {
-                                                if let itunesResult = itunesResult {
-                                                    self.albumArtURL = URL(string: itunesResult.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
-                                                    self.albumURL = URL(string: itunesResult.trackViewUrl)
-
-                                                    // Show **exactly** what we got back from Apple Music:
-                                                    let fullSuggestion = "\(itunesResult.trackName) - \(itunesResult.artistName)"
-                                                    self.suggestedSong = fullSuggestion
-                                                    saveTodayAsCheckedIn()
-                                                    let history = SongHistoryManager.loadHistory()
-                                                    self.pastWeek = buildPastWeekLog(from: history)
-                                                } else {
-                                                    // If Apple returned nothing, fall back to the OpenAI suggestion
-                                                    self.albumArtURL = nil
-                                                    self.albumURL = nil
-                                                    self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
-                                                    saveTodayAsCheckedIn()
-                                                    let history = SongHistoryManager.loadHistory()
-                                                    self.pastWeek = buildPastWeekLog(from: history)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                            }
+                            handleSubmit(mood: moodText)
                         }
                     }) {
                         Text(hasSubmittedToday ? "Come back tomorrow!" : "Submit")
@@ -525,6 +477,116 @@ struct ContentView: View {
         }
     }
     
+    // Helper function for calendar tap
+    private func handleCalendarTap(log: MoodLog) {
+        triggerHaptic()
+        if let entry = log.entry {
+            albumArtURL = nil
+            albumURL = nil
+            if preferredMusicProvider == "Apple Music" {
+                APIService.searchSongOniTunes(song: entry.title, artist: entry.artist) { result in
+                    DispatchQueue.main.async {
+                        if let result = result {
+                            self.albumArtURL = URL(string: result.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
+                            self.albumURL = URL(string: result.trackViewUrl)
+                            self.suggestedSong = "\(result.trackName) - \(result.artistName)"
+                        }
+                    }
+                }
+            } else {
+                // First search iTunes for cleaned title/artist, then search Spotify
+                APIService.searchSongOniTunes(song: entry.title, artist: entry.artist) { result in
+                    DispatchQueue.main.async {
+                        if let result = result {
+                            // Use cleaned iTunes result to search Spotify
+                            APIService.searchSongOnSpotify(song: result.trackName, artist: result.artistName) { coverURL, spotifyLink in
+                                DispatchQueue.main.async {
+                                    self.albumArtURL = coverURL != nil ? URL(string: coverURL!) : nil
+                                    self.albumURL = spotifyLink != nil ? URL(string: spotifyLink!) : nil
+                                    self.suggestedSong = "\(result.trackName) - \(result.artistName)"
+                                }
+                            }
+                        } else {
+                            // Fallback: use original entry if iTunes fails
+                            APIService.searchSongOnSpotify(song: entry.title, artist: entry.artist) { coverURL, spotifyLink in
+                                DispatchQueue.main.async {
+                                    self.albumArtURL = coverURL != nil ? URL(string: coverURL!) : nil
+                                    self.albumURL = spotifyLink != nil ? URL(string: spotifyLink!) : nil
+                                    self.suggestedSong = "\(entry.title) - \(entry.artist)"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Helper function for submit button
+    private func handleSubmit(mood: String) {
+        triggerHaptic()
+        isLoading = true
+        // building the hisotry everytime we get a non-duplicate song suggestion, check APIServices
+        APIService.getNonDuplicateSongSuggestion(for: mood) { result in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let suggestion = result {
+                    if preferredMusicProvider == "Apple Music" {
+                        APIService.searchSongOniTunes(song: suggestion.title, artist: suggestion.artist) { itunesResult in
+                            DispatchQueue.main.async {
+                                if let itunesResult = itunesResult {
+                                    self.albumArtURL = URL(string: itunesResult.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
+                                    self.albumURL = URL(string: itunesResult.trackViewUrl)
+                                    // Show **exactly** what we got back from Apple Music:
+                                    let fullSuggestion = "\(itunesResult.trackName) - \(itunesResult.artistName)"
+                                    self.suggestedSong = fullSuggestion
+                                    saveTodayAsCheckedIn()
+                                    let history = SongHistoryManager.loadHistory()
+                                    self.pastWeek = buildPastWeekLog(from: history)
+                                } else {
+                                    // If Apple returned nothing, fall back to the OpenAI suggestion
+                                    self.albumArtURL = nil
+                                    self.albumURL = nil
+                                    self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
+                                    saveTodayAsCheckedIn()
+                                    let history = SongHistoryManager.loadHistory()
+                                    self.pastWeek = buildPastWeekLog(from: history)
+                                }
+                            }
+                        }
+                    } else {
+                        // First search iTunes for cleaned title/artist, then search Spotify
+                        APIService.searchSongOniTunes(song: suggestion.title, artist: suggestion.artist) { itunesResult in
+                            DispatchQueue.main.async {
+                                if let itunesResult = itunesResult {
+                                    // Use cleaned iTunes result to search Spotify
+                                    APIService.searchSongOnSpotify(song: itunesResult.trackName, artist: itunesResult.artistName) { coverURL, spotifyLink in
+                                        DispatchQueue.main.async {
+                                            self.albumArtURL = coverURL != nil ? URL(string: coverURL!) : nil
+                                            self.albumURL = spotifyLink != nil ? URL(string: spotifyLink!) : nil
+                                            self.suggestedSong = "\(itunesResult.trackName) - \(itunesResult.artistName)"
+                                            saveTodayAsCheckedIn()
+                                            let history = SongHistoryManager.loadHistory()
+                                            self.pastWeek = buildPastWeekLog(from: history)
+                                        }
+                                    }
+                                } else {
+                                    // Fallback: use original suggestion if iTunes fails
+                                    self.albumArtURL = nil
+                                    self.albumURL = nil
+                                    self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
+                                    saveTodayAsCheckedIn()
+                                    let history = SongHistoryManager.loadHistory()
+                                    self.pastWeek = buildPastWeekLog(from: history)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     func saveTodayAsCheckedIn() {
         let today = Date()
         UserDefaults.standard.set(today, forKey: Self.lastCheckInKey)
@@ -558,17 +620,11 @@ struct UpdatePromoSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("What’s new in MoodMusic 🎉")
+                    Text("Spotify integration is now live 🎉")
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                     Text("""
-                    Hey folks! Priyanshu here, I hope you guys are enjoying the app, here are the updates:
-                    
-                    • Crisper gradients & contrast
-                    • Copy buttons + haptics on the card
-                    • Set a time for reminder notifications
-                    
-                    p.s. opening links in Spotify coming soon...
+                    Navigate to settings to choose between Apple Music or Spotify as your music provider of choice.
                     """)
                         .font(.callout)
                         .foregroundColor(.secondary)
@@ -585,7 +641,7 @@ struct UpdatePromoSheet: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Try my new app: TagTrail 📍")
+                Text("Try my new app: TagTrail📍")
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundColor(.primary)
                 Text("Pin quick notes to places and get reminded when you’re nearby. Great for errands, campus life, and ‘don’t forget this’ moments.")
@@ -628,7 +684,7 @@ struct UpdatePromoSheet: View {
                 }
             }
         }
-        .padding(20)
+        .padding(.horizontal, 20)
     }
 }
 

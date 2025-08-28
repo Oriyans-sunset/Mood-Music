@@ -8,6 +8,13 @@
 import SwiftUI
 import UserNotifications
 
+enum MusicProvider: String, CaseIterable, Identifiable {
+    case appleMusic = "Apple Music"
+    case spotify = "Spotify"
+
+    var id: String { self.rawValue }
+}
+
 struct SettingsView: View {
     @State private var showingPrivacy = false
     @AppStorage("notificationTime") private var notificationTime: Date = {
@@ -19,6 +26,8 @@ struct SettingsView: View {
     @State private var notificationsEnabled = false
     @State private var notificationsDenied = false
     @State private var showingNotificationAlert = false
+    @AppStorage("preferredMusicProvider") private var preferredMusicProvider: MusicProvider = .appleMusic
+    
     var body: some View {
 
         let styledText: AttributedString = {
@@ -119,6 +128,14 @@ struct SettingsView: View {
                 }
             }
 
+            Section(header: Text("Music Service")) {
+                Picker("Preferred Provider", selection: $preferredMusicProvider) {
+                    ForEach(MusicProvider.allCases) { provider in
+                        Text(provider.rawValue).tag(provider)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
 
             Section(header: Text("Check out my other app")) {
                 HStack(alignment: .center, spacing: 16) {

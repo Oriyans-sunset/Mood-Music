@@ -7,6 +7,23 @@
 
 import Foundation
 
+struct SpotifyTrack: Decodable {
+    let album: Album
+    let external_urls: [String: String]
+
+    struct Album: Decodable {
+        let images: [Image]
+        struct Image: Decodable { let url: String }
+    }
+}
+
+struct SpotifySearchResponse: Decodable {
+    let tracks: Tracks
+    struct Tracks: Decodable {
+        let items: [SpotifyTrack]
+    }
+}
+
 struct APIService {
     
     static func getSongSuggestion(for moodText: String, completion: @escaping (String?) -> Void) {
@@ -187,6 +204,72 @@ struct APIService {
                 // No exact – try artist search next
                 runArtistSearch()
             }
+        }.resume()
+    }
+    
+    static func searchSongOnSpotify(song: String,
+                                    artist: String,
+                                    completion: @escaping (String?, String?) -> Void) {
+        // completion: (coverArtURL, spotifyLink)
+        
+        getSpotifyAccessToken { token in
+            guard let token = token else { completion(nil, nil); return }
+
+            let query = "track:\(song) artist:\(artist)"
+                .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+
+            let url = URL(string: "https://api.spotify.com/v1/search?q=\(query)&type=track&limit=1")!
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            
+            URLSession.shared.dataTask(with: request) { data, _, _ in
+                guard let data = data,
+                      let response = try? JSONDecoder().decode(SpotifySearchResponse.self, from: data),
+                      let track = response.tracks.items.first else {
+                    print("❌ Spotify search error: could not decode response")
+                    completion(nil, nil)
+                    return
+                }
+                
+                let coverURL = track.album.images.first?.url
+                let spotifyLink = track.external_urls["spotify"]
+                completion(coverURL, spotifyLink)
+            }.resume()
+        }
+    }
+    private static func getSpotifyAccessToken(completion: @escaping (String?) -> Void) {
+        let clientId = Bundle.main.object(forInfoDictionaryKey: "SPOTIFY_CLIENT_ID") as? String ?? ""
+        let clientSecret = Bundle.main.object(forInfoDictionaryKey: "SPOTIFY_CLIENT_SECRET") as? String ?? ""
+        
+        if clientId.isEmpty {
+            print("❌ SPOTIFY_CLIENT_ID is missing! Make sure Secrets.xcconfig exists and is configured.")
+        }
+        
+        if clientSecret.isEmpty {
+            print("❌ SPOTIFY_CLIENT_SECRET is missing! Make sure Secrets.xcconfig exists and is configured.")
+        }
+        
+        guard let credentialData = "\(clientId):\(clientSecret)".data(using: .utf8) else {
+            completion(nil); return
+        }
+
+        let base64Credentials = credentialData.base64EncodedString()
+        var request = URLRequest(url: URL(string: "https://accounts.spotify.com/api/token")!)
+        request.httpMethod = "POST"
+        request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = "grant_type=client_credentials".data(using: .utf8)
+
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let token = json["access_token"] as? String else {
+                print("❌ Spotify auth error: failed to get access token")
+                completion(nil); return
+            }
+            completion(token)
         }.resume()
     }
 }
