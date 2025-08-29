@@ -300,10 +300,12 @@ struct ContentView: View {
                 refreshCheckInFlag()
             }
             .onAppear {
-                let history = SongHistoryManager.loadHistory()
-                self.pastWeek = buildPastWeekLog(from: history)
-                refreshCheckInFlag()
-                checkForUpdateNotice()
+                SongHistoryManager.migrateRawEntries {
+                    let history = SongHistoryManager.loadHistory()
+                    self.pastWeek = buildPastWeekLog(from: history)
+                    refreshCheckInFlag()
+                    checkForUpdateNotice()
+                }
             }
             .sheet(isPresented: $showUpdateSheet) {
                 UpdatePromoSheet(

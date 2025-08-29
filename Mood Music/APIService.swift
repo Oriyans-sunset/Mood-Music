@@ -97,33 +97,37 @@ struct APIService {
         var attempts = 0
         
         func tryFetch() {
-            // call the fucntion to get the suggestion
             getSongSuggestion(for: moodText) { result in
                 guard let content = result as String?,
                       let jsonData = content.data(using: String.Encoding.utf8),
-                      let suggestion = try? JSONDecoder().decode(SongSuggestion.self, from: jsonData) else {
+                      let rawSuggestion = try? JSONDecoder().decode(SongSuggestion.self, from: jsonData) else {
                     completion(nil)
                     return
                 }
-
-                let entry = SongSuggestionHistoryEntry(title: suggestion.title,
-                                                       artist: suggestion.artist,
-                                                       date: Date(),
-                                                       emoji: moodText)
                 
-                if SongHistoryManager.isDuplicate(entry) {
-                    //print("attempt")
-                    attempts += 1
-                    if attempts < maxRetries {
-                        //print("Duplicate found: \(entry). Retrying (\(attempts)/\(maxRetries))...")
-                        tryFetch()
-                    } else {
-                        //print("No unique suggestion found after \(maxRetries) attempts.")
+                searchSongOniTunes(song: rawSuggestion.title, artist: rawSuggestion.artist) { iTunesResult in
+                    guard let iTunesResult = iTunesResult else {
                         completion(nil)
+                        return
                     }
-                } else {
-                    SongHistoryManager.addToHistory(entry)
-                    completion(suggestion)
+                    
+                    let correctedEntry = SongSuggestionHistoryEntry(title: iTunesResult.trackName,
+                                                                   artist: iTunesResult.artistName,
+                                                                   date: Date(),
+                                                                   emoji: moodText)
+                    
+                    if SongHistoryManager.isDuplicate(correctedEntry) {
+                        attempts += 1
+                        if attempts < maxRetries {
+                            tryFetch()
+                        } else {
+                            completion(nil)
+                        }
+                    } else {
+                        SongHistoryManager.addToHistory(correctedEntry)
+                        let correctedSuggestion = SongSuggestion(title: iTunesResult.trackName, artist: iTunesResult.artistName)
+                        completion(correctedSuggestion)
+                    }
                 }
             }
         }
