@@ -54,19 +54,19 @@ class ThemeManager: ObservableObject {
 
     func trySelectTheme(_ theme: AppTheme, completion: @escaping (Bool) -> Void) {
         if theme.isPremium { // DO NOT FORGET TO CHANGE
-            self.selectTheme(theme)
-            completion(true)
-//            Purchases.shared.getCustomerInfo { customerInfo, error in
-//                if let customerInfo = customerInfo,
-//                   customerInfo.entitlements.all["premium"]?.isActive == true {
-//                    DispatchQueue.main.async {
-//                        self.selectTheme(theme)
-//                        completion(true)
-//                    }
-//                } else {
-//                    completion(false)
-//                }
-//            }
+//            self.selectTheme(theme)
+//            completion(true)
+            Purchases.shared.getCustomerInfo { customerInfo, error in
+                if let customerInfo = customerInfo,
+                   customerInfo.entitlements.all["premium"]?.isActive == true {
+                    DispatchQueue.main.async {
+                        self.selectTheme(theme)
+                        completion(true)
+                    }
+                } else {
+                    completion(false)
+                }
+            }
         } else {
             self.selectTheme(theme)
             completion(true)
