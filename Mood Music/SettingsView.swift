@@ -7,6 +7,8 @@
 
 import SwiftUI
 import UserNotifications
+import RevenueCat
+import RevenueCatUI
 
 enum MusicProvider: String, CaseIterable, Identifiable {
     case appleMusic = "Apple Music"
@@ -26,7 +28,13 @@ struct SettingsView: View {
     @State private var notificationsEnabled = false
     @State private var notificationsDenied = false
     @State private var showingNotificationAlert = false
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("preferredMusicProvider") private var preferredMusicProvider: MusicProvider = .appleMusic
+    @EnvironmentObject var themeManager: ThemeManager
+    @State private var showThemeChangedToast = false
+    
+    @State private var showingPaywall = false
+    @State private var currentOffering: RevenueCat.Offering?
     
     var body: some View {
 
@@ -136,6 +144,43 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.menu)
             }
+            
+            Section(header: Text("Themes")) {
+                ForEach(ThemeManager.allThemes) { theme in
+                    HStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: theme.gradient(for: colorScheme)),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 60, height: 40)
+                        Text(theme.name)
+                        Spacer()
+                        if themeManager.selectedTheme.id == theme.id {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.blue)
+                        }
+                        if theme.isPremium {
+                            Image(systemName: "lock.fill")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        themeManager.trySelectTheme(theme) { unlocked in
+                            if !unlocked {
+                                showingPaywall = true
+                            } else {
+                                let generator = UIImpactFeedbackGenerator(style: .light)
+                                generator.impactOccurred()
+                            }
+                        }
+                    }
+                }
+            }
 
             Section(header: Text("Check out my other app")) {
                 HStack(alignment: .center, spacing: 16) {
@@ -228,7 +273,28 @@ struct SettingsView: View {
                 .padding(1)
 
         }
+        .overlay(
+            Group {
+                if showThemeChangedToast {
+                    Text("Theme changed to \(themeManager.selectedTheme.name)")
+                        .font(.subheadline)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(12)
+                        .shadow(radius: 3)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 40)
+                }
+            },
+            alignment: .bottom
+        )
         .onAppear {
+            //load offering on appear
+            Purchases.shared.getOfferings { offerings, _ in
+                    currentOffering = offerings?.current
+                }
+            
             UNUserNotificationCenter.current().getNotificationSettings { settings in
                 DispatchQueue.main.async {
                     notificationsDenied = (settings.authorizationStatus == .denied)
@@ -248,6 +314,13 @@ struct SettingsView: View {
                 message: Text("Notifications are enabled in the app, but turned off in your system settings. You can enable them in Settings > Notifications > MoodMusic."),
                 dismissButton: .default(Text("OK"))
             )
+        }
+        .sheet(isPresented: $showingPaywall) {
+            if let offering = currentOffering {
+                PaywallView(offering: offering)
+            } else {
+                Text("Loading...")
+            }
         }
         .sheet(isPresented: $showingPrivacy) {
             VStack(spacing: 20) {
@@ -289,4 +362,5 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environmentObject(ThemeManager())
 }

@@ -14,6 +14,9 @@ enum Route: Hashable {
 struct ContentView: View {
     
     @AppStorage("preferredMusicProvider") private var preferredMusicProvider: String = "Apple Music"
+    
+    @EnvironmentObject var themeManager: ThemeManager
+    
     @State private var path = NavigationPath()
 
     @State private var albumArtURL: URL? = nil
@@ -71,12 +74,9 @@ struct ContentView: View {
         NavigationStack(path: $path) {
             ZStack{
                 LinearGradient(
-                    gradient: Gradient(colors: colorScheme == .dark
-                            ? [Color.black.opacity(0.1), Color.purple.opacity(0.7)] // dark mode
-                            : [Color.mint.opacity(0.6), Color.pink.opacity(0.4)]  // light mode
-                        ),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                    gradient: Gradient(colors: themeManager.selectedTheme.gradient(for: colorScheme)),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
                 
@@ -189,16 +189,16 @@ struct ContentView: View {
                                 let moodColor = moodTextColours[log.moodText ?? ""] ?? .black.opacity(0.3)
                                 Button(action: { handleCalendarTap(log: log) }) {
                                     ZStack {
-                                        Circle()
-                                            .fill(moodColor)
-                                            .frame(width: 40, height: 40)
-                                            .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 2)
-                                        
-                                        Text(log.day)
-                                            .font(.callout)
-                                            .fontWeight(.semibold)
-                                            .monospacedDigit()
-                                            .foregroundColor(.white)
+                                        CalendarDayView(
+                                            day: log.day,
+                                            color: moodColor,
+                                            style: themeManager.selectedTheme.calendarStyle,
+                                            borderColor: themeManager.selectedTheme.calendarBorderColor,
+                                            borderWidth: themeManager.selectedTheme.calendarBorderWidth,
+                                            textFont: themeManager.selectedTheme.calendarTextFont,
+                                            textColor: themeManager.selectedTheme.calendarTextColor,
+                                            glow: themeManager.selectedTheme.calendarGlow
+                                        )
                                     }
                                     .frame(maxWidth: .infinity)
                                 }.disabled(log.entry == nil)
@@ -231,14 +231,12 @@ struct ContentView: View {
                         Text(hasSubmittedToday ? "Come back tomorrow!" : "Submit")
                             .font(.system(size: 20))
                             .fontWeight(.bold)
-                            .foregroundColor(.primary)
+                            .foregroundColor(themeManager.selectedTheme.buttonTextColor)
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(
                                 LinearGradient(
-                                    gradient: Gradient(colors: colorScheme == .dark
-                                        ? [Color.indigo.opacity(0.9), Color.blue.opacity(0.9)]
-                                        : [Color.blue.opacity(0.9), Color.teal.opacity(0.9)]),
+                                    gradient: Gradient(colors: themeManager.selectedTheme.buttonGradient(for: colorScheme)),
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
@@ -610,6 +608,92 @@ struct ContentView: View {
     
 }
 
+enum CalendarStyle {
+    case circle
+    case pill
+    case square
+}
+
+struct CalendarDayView: View {
+    let day: String
+    let color: Color
+    let style: CalendarStyle
+    // Customization parameters
+    var borderColor: Color? = nil
+    var borderWidth: CGFloat = 0
+    var textFont: Font = .callout
+    var textColor: Color = .white
+    var glow: Bool = false
+    
+    var body: some View {
+        Group {
+            switch style {
+            case .circle:
+                Circle()
+                    .fill(color)
+                    .overlay(
+                        Circle()
+                            .stroke(borderColor ?? .white, lineWidth: borderWidth)
+                            .opacity(borderWidth > 0 ? 1 : 0)
+                    )
+                    .overlay(
+                        Text(day)
+                            .font(textFont)
+                            .fontWeight(.semibold)
+                            .foregroundColor(textColor)
+                    )
+                    .frame(width: 40, height: 40)
+            case .pill:
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(color)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(borderColor ?? .white, lineWidth: borderWidth)
+                            .opacity(borderWidth > 0 ? 1 : 0)
+                    )
+                    .overlay(
+                        Text(day)
+                            .font(textFont)
+                            .fontWeight(.semibold)
+                            .foregroundColor(textColor)
+                    )
+                    .frame(width: 55, height: 40)
+            case .square:
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(color)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(borderColor ?? .white, lineWidth: borderWidth)
+                            .opacity(borderWidth > 0 ? 1 : 0)
+                    )
+                    .overlay(
+                        Text(day)
+                            .font(textFont)
+                            .fontWeight(.semibold)
+                            .foregroundColor(textColor)
+                    )
+                    .frame(width: 40, height: 40)
+            }
+        }
+        .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 2)
+        .modifier(GlowShadowModifier(glow: glow, borderColor: borderColor))
+    }
+}
+
+// Helper modifier for glow shadow
+private struct GlowShadowModifier: ViewModifier {
+    let glow: Bool
+    let borderColor: Color?
+    func body(content: Content) -> some View {
+        if glow {
+            content
+                .shadow(color: (borderColor ?? .white).opacity(0.8), radius: 6)
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - One-time update dialog content
 struct UpdatePromoSheet: View {
     let tagTrailURL: URL?
@@ -743,5 +827,6 @@ extension Image {
                        
 #Preview {
     ContentView()
+        .environmentObject(ThemeManager())
 }
                        
