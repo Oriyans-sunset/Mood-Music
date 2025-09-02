@@ -9,6 +9,7 @@ import SwiftUI
 
 enum Route: Hashable {
     case settings
+    case stats
 }
 
 struct ContentView: View {
@@ -95,6 +96,19 @@ struct ContentView: View {
                         // Absolute position for settings button
                         VStack {
                             HStack {
+                                Button(action: {
+                                    path.append(Route.stats)
+                                }) {
+                                    Image(systemName: "calendar.circle")
+                                        .font(.system(size: 25, weight: .medium))
+                                        .foregroundColor(.primary)
+                                        .frame(width: 40, height: 40)
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(Circle())
+                                        .shadow(radius: 2)
+                                }
+                                .padding(.leading, 16)
+                                .padding(.top, 12)
                                 Spacer()
                                 Button(action: {
                                     path.append(Route.settings)
@@ -184,28 +198,40 @@ struct ContentView: View {
                     
                     // calender view
                     VStack(spacing: 12) {
-                        HStack(spacing: 12){
-                            ForEach(pastWeek, id: \.day) { log in
-                                let moodColor = moodTextColours[log.moodText ?? ""] ?? .black.opacity(0.3)
-                                Button(action: { handleCalendarTap(log: log) }) {
-                                    ZStack {
-                                        CalendarDayView(
-                                            day: log.day,
-                                            color: moodColor,
-                                            style: themeManager.selectedTheme.calendarStyle,
-                                            borderColor: themeManager.selectedTheme.calendarBorderColor,
-                                            borderWidth: themeManager.selectedTheme.calendarBorderWidth,
-                                            textFont: themeManager.selectedTheme.calendarTextFont,
-                                            textColor: themeManager.selectedTheme.calendarTextColor,
-                                            glow: themeManager.selectedTheme.calendarGlow
+                        
+                            HStack(spacing: 0) {
+                                ForEach(pastWeek, id: \.date) { log in
+                                    let moodColor = moodTextColours[log.moodText ?? ""] ?? .black.opacity(0.3)
+                                    Button(action: {
+                                        handleCalendarTap(
+                                            log: log,
+                                            preferredMusicProvider: preferredMusicProvider,
+                                            albumArtURL: $albumArtURL,
+                                            albumURL: $albumURL,
+                                            suggestedSong: $suggestedSong
                                         )
+                                    }) {
+                                        ZStack {
+                                            CalendarDayView(
+                                                day: log.day,
+                                                color: moodColor,
+                                                style: themeManager.selectedTheme.calendarStyle,
+                                                borderColor: themeManager.selectedTheme.calendarBorderColor,
+                                                borderWidth: themeManager.selectedTheme.calendarBorderWidth,
+                                                textFont: themeManager.selectedTheme.calendarTextFont,
+                                                textColor: themeManager.selectedTheme.calendarTextColor,
+                                                glow: themeManager.selectedTheme.calendarGlow
+                                            )
+                                        }
+                                        .frame(width: 50) // fixed width keeps layout consistent
                                     }
-                                    .frame(maxWidth: .infinity)
-                                }.disabled(log.entry == nil)
+                                    .disabled(log.entry == nil)
                                     .opacity(log.entry == nil ? 0.5 : 1.0)
+                                }
                             }
-                        }
-                        .padding(8)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 8)
+                            
                         .background(.ultraThinMaterial)
                         .cornerRadius(24)
                         .overlay(
@@ -220,7 +246,7 @@ struct ContentView: View {
                                 )
                         )
                         .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-                    }.padding()
+                    }
                     
                     // Submit button
                     Button(action: {
@@ -290,17 +316,19 @@ struct ContentView: View {
                 switch route {
                 case .settings:
                     SettingsView()
+                case .stats:
+                    StatsView()
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 let history = SongHistoryManager.loadHistory()
-                self.pastWeek = buildPastWeekLog(from: history)
+                self.pastWeek = buildPastLog(from: history, daysBack: 7)
                 refreshCheckInFlag()
             }
             .onAppear {
                 SongHistoryManager.migrateRawEntries {
                     let history = SongHistoryManager.loadHistory()
-                    self.pastWeek = buildPastWeekLog(from: history)
+                    self.pastWeek = buildPastLog(from: history, daysBack: 7)
                     refreshCheckInFlag()
                     checkForUpdateNotice()
                 }
@@ -315,213 +343,6 @@ struct ContentView: View {
         }
         
     }
-    
-    struct SongSuggestionCard: View {
-        let title: String
-        let artist: String
-        let albumArtURL: URL?
-        let albumURL: URL?
-        let onClose: () -> Void
-
-        @Environment(\.openURL) private var openURL
-        @Environment(\.colorScheme) private var colorScheme
-        @State private var copiedTitle = false
-        @State private var copiedArtist = false
-
-        var body: some View {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Today's Pick🔥")
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-
-                    Spacer()
-
-                    Button(action: {
-                        onClose()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                if let url = albumArtURL {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(maxHeight: 280)
-                                .clipped()
-                                .cornerRadius(16)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.black.opacity(0.05), lineWidth: 1)
-                                )
-                                .shadow(color: .black.opacity(0.25), radius: 30, x: 0, y: 12)
-                        } else {
-                            Color.gray.opacity(0.3)
-                                .frame(maxHeight: 280)
-                                .cornerRadius(16)
-                        }
-                    }
-                } else {
-                    Color.gray.opacity(0.3)
-                        .frame(maxHeight: 280)
-                        .cornerRadius(16)
-                }
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(title)
-                                .font(.system(size: 20, weight: .semibold, design: .rounded))
-                                .foregroundColor(.primary)
-                                .lineLimit(2)
-                            Button(action: {
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                UIPasteboard.general.string = title
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                    copiedTitle = true
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                                    withAnimation(.easeOut(duration: 0.2)) { copiedTitle = false }
-                                }
-                            }) {
-                                ZStack {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 14))
-                                        .opacity(copiedTitle ? 0.0 : 1.0)
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.green)
-                                        .opacity(copiedTitle ? 1.0 : 0.0)
-                                        .scaleEffect(copiedTitle ? 1.1 : 0.8)
-                                }
-                            }
-                            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: copiedTitle)
-                            .accessibilityLabel("Copy to clipboard")
-#if swift(>=5.9)
-                            .sensoryFeedback(.success, trigger: copiedTitle)
-#endif
-                        }
-                        HStack {
-                            Text(artist.uppercased())
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                            Button(action: {
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                UIPasteboard.general.string = artist
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                    copiedArtist = true
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                                    withAnimation(.easeOut(duration: 0.2)) { copiedArtist = false }
-                                }
-                            }) {
-                                ZStack {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 12))
-                                        .opacity(copiedArtist ? 0.0 : 1.0)
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.green)
-                                        .opacity(copiedArtist ? 1.0 : 0.0)
-                                        .scaleEffect(copiedArtist ? 1.1 : 0.8)
-                                }
-                            }
-                            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: copiedArtist)
-                            .accessibilityLabel("Copy to clipboard")
-#if swift(>=5.9)
-                            .sensoryFeedback(.success, trigger: copiedArtist)
-#endif
-                        }
-                    }
-
-                    Button(action: {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        if let url = albumURL {
-                            openURL(url)
-                        }
-                    }) {
-                        VStack(alignment: .trailing) {
-                            Image(systemName: "arrow.up.right.square.fill")
-                                .font(.system(size: 21))
-                                .frame(width: 43, height: 43)
-                                .foregroundColor(.white)
-                                .background(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color(red: 255/255, green: 100/255, blue: 130/255),  // Very top - lightest pink
-                                            Color(red: 254/255, green: 80/255, blue: 100/255),   // Upper middle
-                                            Color(red: 252/255, green: 61/255, blue: 85/255),    // Lower middle
-                                            Color(red: 250/255, green: 50/255, blue: 70/255)     // Bottom - deepest pink
-                                        ]),
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .clipShape(Circle())
-                        }.frame(maxWidth: .infinity, alignment: .trailing)
-                    }.disabled(albumURL == nil)
-                }
-            }
-            .padding()
-            .background(Color(UIColor.secondarySystemBackground))
-            .shadow(color: .black.opacity(0.05), radius: 20, x: 0, y: 10)
-            .cornerRadius(20)
-            .shadow(radius: 10)
-            .padding(.horizontal)
-        }
-    }
-    
-    // Helper function for calendar tap
-    private func handleCalendarTap(log: MoodLog) {
-        triggerHaptic()
-        if let entry = log.entry {
-            albumArtURL = nil
-            albumURL = nil
-            if preferredMusicProvider == "Apple Music" {
-                APIService.searchSongOniTunes(song: entry.title, artist: entry.artist) { result in
-                    DispatchQueue.main.async {
-                        if let result = result {
-                            self.albumArtURL = URL(string: result.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
-                            self.albumURL = URL(string: result.trackViewUrl)
-                            self.suggestedSong = "\(result.trackName) - \(result.artistName)"
-                        }
-                    }
-                }
-            } else {
-                // First search iTunes for cleaned title/artist, then search Spotify
-                APIService.searchSongOniTunes(song: entry.title, artist: entry.artist) { result in
-                    DispatchQueue.main.async {
-                        if let result = result {
-                            // Use cleaned iTunes result to search Spotify
-                            APIService.searchSongOnSpotify(song: result.trackName, artist: result.artistName) { coverURL, spotifyLink in
-                                DispatchQueue.main.async {
-                                    self.albumArtURL = coverURL != nil ? URL(string: coverURL!) : nil
-                                    self.albumURL = spotifyLink != nil ? URL(string: spotifyLink!) : nil
-                                    self.suggestedSong = "\(result.trackName) - \(result.artistName)"
-                                }
-                            }
-                        } else {
-                            // Fallback: use original entry if iTunes fails
-                            APIService.searchSongOnSpotify(song: entry.title, artist: entry.artist) { coverURL, spotifyLink in
-                                DispatchQueue.main.async {
-                                    self.albumArtURL = coverURL != nil ? URL(string: coverURL!) : nil
-                                    self.albumURL = spotifyLink != nil ? URL(string: spotifyLink!) : nil
-                                    self.suggestedSong = "\(entry.title) - \(entry.artist)"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // Helper function for submit button
     private func handleSubmit(mood: String) {
         triggerHaptic()
@@ -542,7 +363,7 @@ struct ContentView: View {
                                     self.suggestedSong = fullSuggestion
                                     saveTodayAsCheckedIn()
                                     let history = SongHistoryManager.loadHistory()
-                                    self.pastWeek = buildPastWeekLog(from: history)
+                                    self.pastWeek = buildPastLog(from: history, daysBack: 7)
                                 } else {
                                     // If Apple returned nothing, fall back to the OpenAI suggestion
                                     self.albumArtURL = nil
@@ -550,7 +371,7 @@ struct ContentView: View {
                                     self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
                                     saveTodayAsCheckedIn()
                                     let history = SongHistoryManager.loadHistory()
-                                    self.pastWeek = buildPastWeekLog(from: history)
+                                    self.pastWeek = buildPastLog(from: history, daysBack: 7)
                                 }
                             }
                         }
@@ -567,7 +388,7 @@ struct ContentView: View {
                                             self.suggestedSong = "\(itunesResult.trackName) - \(itunesResult.artistName)"
                                             saveTodayAsCheckedIn()
                                             let history = SongHistoryManager.loadHistory()
-                                            self.pastWeek = buildPastWeekLog(from: history)
+                                            self.pastWeek = buildPastLog(from: history, daysBack: 7)
                                         }
                                     }
                                 } else {
@@ -577,7 +398,7 @@ struct ContentView: View {
                                     self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
                                     saveTodayAsCheckedIn()
                                     let history = SongHistoryManager.loadHistory()
-                                    self.pastWeek = buildPastWeekLog(from: history)
+                                    self.pastWeek = buildPastLog(from: history, daysBack: 7)
                                 }
                             }
                         }
@@ -607,6 +428,168 @@ struct ContentView: View {
     }
     
 }
+
+struct SongSuggestionCard: View {
+    let title: String
+    let artist: String
+    let albumArtURL: URL?
+    let albumURL: URL?
+    let onClose: () -> Void
+
+    @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var copiedTitle = false
+    @State private var copiedArtist = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Today's Pick🔥")
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Button(action: {
+                    onClose()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if let url = albumArtURL {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxHeight: 280)
+                            .clipped()
+                            .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(0.25), radius: 30, x: 0, y: 12)
+                    } else {
+                        Color.gray.opacity(0.3)
+                            .frame(maxHeight: 280)
+                            .cornerRadius(16)
+                    }
+                }
+            } else {
+                Color.gray.opacity(0.3)
+                    .frame(maxHeight: 280)
+                    .cornerRadius(16)
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(title)
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .foregroundColor(.primary)
+                            .lineLimit(2)
+                        Button(action: {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            UIPasteboard.general.string = title
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                copiedTitle = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                                withAnimation(.easeOut(duration: 0.2)) { copiedTitle = false }
+                            }
+                        }) {
+                            ZStack {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 14))
+                                    .opacity(copiedTitle ? 0.0 : 1.0)
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.green)
+                                    .opacity(copiedTitle ? 1.0 : 0.0)
+                                    .scaleEffect(copiedTitle ? 1.1 : 0.8)
+                            }
+                        }
+                        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: copiedTitle)
+                        .accessibilityLabel("Copy to clipboard")
+#if swift(>=5.9)
+                        .sensoryFeedback(.success, trigger: copiedTitle)
+#endif
+                    }
+                    HStack {
+                        Text(artist.uppercased())
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                        Button(action: {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            UIPasteboard.general.string = artist
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                copiedArtist = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                                withAnimation(.easeOut(duration: 0.2)) { copiedArtist = false }
+                            }
+                        }) {
+                            ZStack {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 12))
+                                    .opacity(copiedArtist ? 0.0 : 1.0)
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.green)
+                                    .opacity(copiedArtist ? 1.0 : 0.0)
+                                    .scaleEffect(copiedArtist ? 1.1 : 0.8)
+                            }
+                        }
+                        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: copiedArtist)
+                        .accessibilityLabel("Copy to clipboard")
+#if swift(>=5.9)
+                        .sensoryFeedback(.success, trigger: copiedArtist)
+#endif
+                    }
+                }
+
+                Button(action: {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    if let url = albumURL {
+                        openURL(url)
+                    }
+                }) {
+                    VStack(alignment: .trailing) {
+                        Image(systemName: "arrow.up.right.square.fill")
+                            .font(.system(size: 21))
+                            .frame(width: 43, height: 43)
+                            .foregroundColor(.white)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(red: 255/255, green: 100/255, blue: 130/255),  // Very top - lightest pink
+                                        Color(red: 254/255, green: 80/255, blue: 100/255),   // Upper middle
+                                        Color(red: 252/255, green: 61/255, blue: 85/255),    // Lower middle
+                                        Color(red: 250/255, green: 50/255, blue: 70/255)     // Bottom - deepest pink
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .clipShape(Circle())
+                    }.frame(maxWidth: .infinity, alignment: .trailing)
+                }.disabled(albumURL == nil)
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .shadow(color: .black.opacity(0.05), radius: 20, x: 0, y: 10)
+        .cornerRadius(20)
+        .shadow(radius: 10)
+        .padding(.horizontal)
+    }
+}
+
 
 enum CalendarStyle {
     case circle
@@ -694,86 +677,6 @@ private struct GlowShadowModifier: ViewModifier {
     }
 }
 
-// MARK: - One-time update dialog content
-struct UpdatePromoSheet: View {
-    let tagTrailURL: URL?
-    let onClose: () -> Void
-
-    @Environment(\.openURL) private var openURL
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Spotify integration is now live 🎉")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
-                    Text("""
-                    Navigate to settings to choose between Apple Music or Spotify as your music provider of choice.
-                    """)
-                        .font(.callout)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                Button(action: { onClose() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                }
-                .accessibilityLabel("Close update notes")
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Try my new app: TagTrail📍")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
-                Text("Pin quick notes to places and get reminded when you’re nearby. Great for errands, campus life, and ‘don’t forget this’ moments.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            HStack(spacing: 12) {
-                Button(action: { onClose() }) {
-                    Text("Nice!")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(12)
-                }
-
-                Button(action: {
-                    if let url = tagTrailURL { openURL(url) }
-                    onClose()
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.up.right.square.fill")
-                        Text("TagTrail")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: colorScheme == .dark
-                                ? [Color.indigo.opacity(0.95), Color.blue.opacity(0.9)]
-                                : [Color.blue.opacity(0.95), Color.teal.opacity(0.9)]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
-                }
-            }
-        }
-        .padding(.horizontal, 20)
-    }
-}
-
 // gives "M", "T", "W" etc. from a Date
 extension Calendar {
     func shortWeekdaySymbol(for date: Date) -> String {
@@ -782,7 +685,7 @@ extension Calendar {
     }
 }
 
-func buildPastWeekLog(from history: [SongSuggestionHistoryEntry]) -> [MoodLog] {
+func buildPastLog(from history: [SongSuggestionHistoryEntry], daysBack: Int) -> [MoodLog] {
     let uniqueDayLabels = [
         "S", "M", "T", "W", "Th", "F", "Sa"
     ]
@@ -790,21 +693,30 @@ func buildPastWeekLog(from history: [SongSuggestionHistoryEntry]) -> [MoodLog] {
     let calendar = Calendar.current
     var result: [MoodLog] = []
 
-    for offset in (0..<7).reversed() {
-        
-        // Get the date for that day (minus by offset)
+    for offset in (0..<daysBack).reversed() {
         guard let date = calendar.date(byAdding: .day, value: -offset, to: Date()) else { continue }
         
-        // get the day symbol for that date
-        let weekdayIndex = calendar.component(.weekday, from: date) - 1 // 0 = Sunday
+        let weekdayIndex = calendar.component(.weekday, from: date) - 1
         let dayLetter = uniqueDayLabels[weekdayIndex]
         
-        // Check if there’s a saved suggestion for that day
         if let entry = history.first(where: { calendar.isDate($0.date, inSameDayAs: date) }) {
-            let color = moodTextColours[entry.emoji] ?? .black
-            result.append(MoodLog(day: dayLetter, moodText: entry.emoji, entry: entry))
+            result.append(
+                MoodLog(
+                    date: date,
+                    day: dayLetter,
+                    moodText: entry.emoji,
+                    entry: entry
+                )
+            )
         } else {
-            result.append(MoodLog(day: dayLetter, moodText: nil, entry: nil))
+            result.append(
+                MoodLog(
+                    date: date,
+                    day: dayLetter,
+                    moodText: nil,
+                    entry: nil
+                )
+            )
         }
     }
 

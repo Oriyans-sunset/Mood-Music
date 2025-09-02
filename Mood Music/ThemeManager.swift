@@ -54,19 +54,19 @@ class ThemeManager: ObservableObject {
 
     func trySelectTheme(_ theme: AppTheme, completion: @escaping (Bool) -> Void) {
         if theme.isPremium { // DO NOT FORGET TO CHANGE
-//            self.selectTheme(theme)
-//            completion(true)
-            Purchases.shared.getCustomerInfo { customerInfo, error in
-                if let customerInfo = customerInfo,
-                   customerInfo.entitlements.all["premium"]?.isActive == true {
-                    DispatchQueue.main.async {
-                        self.selectTheme(theme)
-                        completion(true)
-                    }
-                } else {
-                    completion(false)
-                }
-            }
+            self.selectTheme(theme)
+            completion(true)
+//            Purchases.shared.getCustomerInfo { customerInfo, error in
+//                if let customerInfo = customerInfo,
+//                   customerInfo.entitlements.all["premium"]?.isActive == true {
+//                    DispatchQueue.main.async {
+//                        self.selectTheme(theme)
+//                        completion(true)
+//                    }
+//                } else {
+//                    completion(false)
+//                }
+//            }
         } else {
             self.selectTheme(theme)
             completion(true)
@@ -78,7 +78,7 @@ class ThemeManager: ObservableObject {
         id: "default",
         name: "Default",
         lightGradient: [Color.mint.opacity(0.6), Color.pink.opacity(0.4)],
-        darkGradient: [Color.black.opacity(0.1), Color.purple.opacity(0.7)],
+        darkGradient: [Color.mint.opacity(0.7), Color.black.opacity(0.1)],
         calendarStyle: .circle,
         isPremium: false,
         calendarBorderColor: nil,
@@ -87,7 +87,7 @@ class ThemeManager: ObservableObject {
         calendarTextColor: .white,
         calendarGlow: false,
         buttonGradientLight: [Color.blue.opacity(0.9), Color.teal.opacity(0.9)],
-        buttonGradientDark: [Color.indigo.opacity(0.9), Color.blue.opacity(0.9)],
+        buttonGradientDark: [Color.indigo.opacity(0.9), Color.mint.opacity(0.9)],
         buttonTextColor: .white
     )
     
