@@ -26,14 +26,7 @@ struct SpotifySearchResponse: Decodable {
 
 struct APIService {
     
-    static func getSongSuggestion(for moodText: String, completion: @escaping (String?) -> Void) {
-        let prompt = """
-        Give me a fun and underrated '\(moodText)' mood song recommendation. Try not to repeat popular choices. Return only a JSON object in this format with **no markdown, no explanation**:
-        {
-          "title": "Song Title",
-          "artist": "Artist Name"
-        }
-        """
+    private static func requestSong(prompt: String, completion: @escaping (String?) -> Void) {
         let apiKey = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String ?? ""
         if apiKey.isEmpty {
             print("❌ OPENAI_API_KEY is missing! Make sure Secrets.xcconfig exists and is configured.")
@@ -91,6 +84,46 @@ struct APIService {
                 completion(nil)
             }
         }.resume()
+    }
+    
+    static func getSongSuggestion(for moodText: String, completion: @escaping (String?) -> Void) {
+        let prompt = """
+        Give me a fun and underrated '\(moodText)' mood song recommendation. Try not to repeat popular choices. Return only a JSON object in this format with **no markdown, no explanation**:
+        {
+          "title": "Song Title",
+          "artist": "Artist Name"
+        }
+        """
+        requestSong(prompt: prompt, completion: completion)
+    }
+    
+    static func getSurpriseSongSuggestion(for moodText: String,
+                                          avoiding primary: SongSuggestion,
+                                          completion: @escaping (SongSuggestion?) -> Void) {
+        let prompt = """
+        The listener chose the '\(moodText)' mood and already got "\(primary.title)" by "\(primary.artist)". Suggest one different bonus track that shares the same vibe but feels like a detour. Avoid remixes or covers of that song. Return only a JSON object:
+        {
+          "title": "Song Title",
+          "artist": "Artist Name"
+        }
+        """
+        requestSong(prompt: prompt) { content in
+            guard let content = content,
+                  let jsonData = content.data(using: .utf8),
+                  let suggestion = try? JSONDecoder().decode(SongSuggestion.self, from: jsonData) else {
+                completion(nil)
+                return
+            }
+            
+            let sameTitle = suggestion.title.caseInsensitiveCompare(primary.title) == .orderedSame
+            let sameArtist = suggestion.artist.caseInsensitiveCompare(primary.artist) == .orderedSame
+            if sameTitle && sameArtist {
+                completion(nil)
+                return
+            }
+            
+            completion(suggestion)
+        }
     }
     
     static func getNonDuplicateSongSuggestion(for moodText: String, maxRetries: Int = 3, completion: @escaping (SongSuggestion?) -> Void) {

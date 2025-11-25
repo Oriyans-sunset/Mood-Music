@@ -16,7 +16,7 @@ struct StatsView: View {
         StatCard(title: "Streaks", type: .comingSoon, icon: "fire"),
         StatCard(title: "Weekly Mood Balance", type: .comingSoon, icon: "jukebox"),
         StatCard(title: "Day of Week", type: .comingSoon, icon: "jukebox"),
-        StatCard(title: "30-Day Mood Logs", type: .calendar, icon: "jukebox")
+        StatCard(title: "30-Day Mood Logs", type: .calendar, icon: "calender")
     ]
     
     @State private var selectedHistoryEntry: SongSuggestionHistoryEntry?
@@ -24,8 +24,12 @@ struct StatsView: View {
     @State private var albumArtURL: URL?
     @State private var albumURL: URL?
     @State private var suggestedSong: String?
+    @State private var exportURL: URL?
+    @State private var showShareSheet = false
+    @State private var exportError: String?
+    @State private var isExporting = false
     
-    @AppStorage("preferredMusicProvider") private var preferredMusicProvider: String = "Apple Music"
+    @AppStorage("preferredMusicProvider") private var preferredMusicProvider: String = "Spotify"
 
     var pastMonthLogs: [MoodLog] {
         buildPastLog(from: SongHistoryManager.loadHistory(), daysBack: 30)
@@ -84,6 +88,49 @@ struct StatsView: View {
             }
         }
         .animation(.spring(response: 0.8, dampingFraction: 0.8), value: suggestedSong != nil)
+        .overlay(alignment: .bottomTrailing) {
+            Button(action: {
+                generateExport()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.arrow.down.on.square.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(themeColors.first ?? .gray.opacity(0.3))
+                    Text(isExporting ? "Preparing..." : "Export")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(themeColors.first ?? .gray.opacity(0.3))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+                .cornerRadius(14)
+                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+            }
+            .padding(.trailing, 22)
+            .padding(.bottom, 2)
+            .disabled(isExporting)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let url = exportURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+        .alert("Could not export PDF", isPresented: Binding(get: { exportError != nil }, set: { _ in exportError = nil })) {
+            Button("OK", role: .cancel) { exportError = nil }
+        } message: {
+            Text(exportError ?? "Unknown error")
+        }
+        .overlay {
+            if isExporting {
+                ZStack {
+                    Color.black.opacity(0.2).ignoresSafeArea()
+                    ProgressView("Building your PDF...")
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(12)
+                }
+            }
+        }
     }
 }
 
@@ -177,6 +224,28 @@ struct StatCard: Identifiable {
 enum StatType {
     case calendar   // real implementation now
     case comingSoon // placeholder cards
+}
+
+// MARK: - Export
+extension StatsView {
+    private func generateExport() {
+        guard !isExporting else { return }
+        isExporting = true
+        exportError = nil
+        let history = SongHistoryManager.loadHistory()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let url = ExportManager.exportCurrentMonth(history: history)
+            DispatchQueue.main.async {
+                isExporting = false
+                if let url = url {
+                    exportURL = url
+                    showShareSheet = true
+                } else {
+                    exportError = "Something went wrong while building your PDF. Please try again."
+                }
+            }
+        }
+    }
 }
 
 #Preview {

@@ -33,3 +33,14 @@ let moodTextColours: [String: Color] = [
     "Anxious": .red
 ]
 
+let moodEmojiByText: [String: String] = {
+    var map: [String: String] = [:]
+    for (emoji, text) in moodLabels {
+        map[text] = emoji
+    }
+    return map
+}()
+
+func emoji(for moodText: String) -> String {
+    moodEmojiByText[moodText] ?? "🎵"
+}

@@ -23,11 +23,18 @@ struct ContentView: View {
     @State private var albumArtURL: URL? = nil
     @State private var albumURL: URL? = nil
     
-    @State private var isLoading: Bool = false
+    @State private var surpriseAlbumArtURL: URL? = nil
+    @State private var surpriseAlbumURL: URL? = nil
+
+    @State private var loadingMessage: String? = nil
     
     @State private var selectedMood:String? = nil
     @State private var suggestedSong:String? = nil
+    @State private var surpriseSong:String? = nil
     @State private var pastWeek: [MoodLog] = [] // calender days colour mapping hardocded for now
+    
+    @State private var lastMoodText: String? = nil
+    @State private var mainSuggestion: SongSuggestion? = nil
     
     // used multiple times so we made it a var
     private static let lastCheckInKey = "lastCheckInDate"
@@ -99,8 +106,8 @@ struct ContentView: View {
                                 Button(action: {
                                     path.append(Route.stats)
                                 }) {
-                                    Image(systemName: "calendar.circle")
-                                        .font(.system(size: 25, weight: .medium))
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 20, weight: .medium))
                                         .foregroundColor(.primary)
                                         .frame(width: 40, height: 40)
                                         .background(.ultraThinMaterial)
@@ -203,6 +210,9 @@ struct ContentView: View {
                                 ForEach(pastWeek, id: \.date) { log in
                                     let moodColor = moodTextColours[log.moodText ?? ""] ?? .black.opacity(0.3)
                                     Button(action: {
+                                        mainSuggestion = nil
+                                        lastMoodText = nil
+                                        resetSurpriseState()
                                         handleCalendarTap(
                                             log: log,
                                             preferredMusicProvider: preferredMusicProvider,
@@ -277,35 +287,93 @@ struct ContentView: View {
                 
                 // song suggestion card
                 ZStack {
-                    if let song = suggestedSong {
-                        VStack{
+                    if suggestedSong != nil || surpriseSong != nil {
+                        VStack(spacing: 14){
                             Spacer()
                             
-                            let parts = song.components(separatedBy: " - ")
-                            
-                            SongSuggestionCard(title: parts.first ?? "Unknown Title",
-                                               artist: parts.last ?? "Unknown Artist",
-                                               albumArtURL: albumArtURL,
-                                               albumURL: albumURL,
-                                               onClose: {
-                                withAnimation {
-                                    suggestedSong = nil
+                            if let song = suggestedSong {
+                                let parts = song.components(separatedBy: " - ")
+                                
+                                SongSuggestionCard(title: parts.first ?? "Unknown Title",
+                                                   artist: parts.last ?? "Unknown Artist",
+                                                   albumArtURL: albumArtURL,
+                                                   albumURL: albumURL,
+                                                   onClose: {
+                                    withAnimation {
+                                        suggestedSong = nil
+                                        mainSuggestion = nil
+                                        lastMoodText = nil
+                                        resetSurpriseState()
+                                    }
+                                })
+
+                                if canRequestSurprise {
+                                    Button(action: {
+                                        launchSurpriseFlow()
+                                    }) {
+                                        HStack(alignment: .center, spacing: 12) {
+                                            Image(systemName: "die.face.5.fill")
+                                                .font(.system(size: 22, weight: .semibold))
+                                                .padding(10)
+                                                .background(Color.white.opacity(0.2))
+                                                .clipShape(Circle())
+                                            
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text("Feeling adventurous? 🎲 Surprise Me")
+                                                    .font(.headline)
+                                                Text("We'll spin up a bonus track near your vibe.")
+                                                    .font(.footnote)
+                                                    .foregroundColor(themeManager.selectedTheme.buttonTextColor.opacity(0.85))
+                                            }
+                                            Spacer()
+                                            Image(systemName: "sparkles")
+                                                .font(.system(size: 18, weight: .semibold))
+                                        }
+                                        .foregroundColor(themeManager.selectedTheme.buttonTextColor)
+                                        .padding()
+                                        .frame(maxWidth: .infinity)
+                                        .background(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: themeManager.selectedTheme.buttonGradient(for: colorScheme)),
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .cornerRadius(18)
+                                        .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
+                                    }
+                                    .padding(.horizontal)
+                                    .disabled(loadingMessage != nil)
                                 }
-                            })
+                            }
+
+                            if let surprise = surpriseSong {
+                                let bonusParts = surprise.components(separatedBy: " - ")
+                                SongSuggestionCard(headline: "Surprise Pick 🎲",
+                                                   title: bonusParts.first ?? "Unknown Title",
+                                                   artist: bonusParts.last ?? "Unknown Artist",
+                                                   albumArtURL: surpriseAlbumArtURL,
+                                                   albumURL: surpriseAlbumURL,
+                                                   onClose: {
+                                    withAnimation {
+                                        resetSurpriseState()
+                                    }
+                                })
+                            }
                             
                         }
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .zIndex(1)
                     }
                 }
-                .animation(.spring(response: 0.8, dampingFraction: 0.8), value: suggestedSong != nil)
+                .animation(.spring(response: 0.8, dampingFraction: 0.8), value: (suggestedSong != nil || surpriseSong != nil))
                 
                 // what to show if data is being fetch
-                if isLoading {
+                if let loadingMessage {
                     Color.black.opacity(0.35)
                         .ignoresSafeArea()
                     
-                    ProgressView("Generating Suggestion...")
+                    ProgressView(loadingMessage)
                         .progressViewStyle(CircularProgressViewStyle())
                         .scaleEffect(1.5)
                         .fontWeight(.bold)
@@ -343,69 +411,119 @@ struct ContentView: View {
         }
         
     }
-    // Helper function for submit button
+    // Suggestion helpers
+    private var canRequestSurprise: Bool {
+        mainSuggestion != nil && lastMoodText != nil
+    }
+
     private func handleSubmit(mood: String) {
         triggerHaptic()
-        isLoading = true
-        // building the hisotry everytime we get a non-duplicate song suggestion, check APIServices
+        resetSurpriseState()
+        loadingMessage = "Generating Suggestion..."
         APIService.getNonDuplicateSongSuggestion(for: mood) { result in
+            guard let suggestion = result else {
+                DispatchQueue.main.async {
+                    loadingMessage = nil
+                }
+                return
+            }
+            
+            resolveSuggestionForDisplay(suggestion) { resolvedSuggestion, displayText, artURL, linkURL in
+                albumArtURL = artURL
+                albumURL = linkURL
+                suggestedSong = displayText
+                mainSuggestion = resolvedSuggestion
+                lastMoodText = mood
+                saveTodayAsCheckedIn()
+                let history = SongHistoryManager.loadHistory()
+                pastWeek = buildPastLog(from: history, daysBack: 7)
+                loadingMessage = nil
+            }
+        }
+    }
+
+    private func fetchSurpriseSong() {
+        guard let mood = lastMoodText,
+              let primary = mainSuggestion else { return }
+        triggerHaptic()
+        loadingMessage = "Rolling the dice..."
+        APIService.getSurpriseSongSuggestion(for: mood, avoiding: primary) { result in
+            guard let bonusSuggestion = result else {
+                DispatchQueue.main.async {
+                    loadingMessage = nil
+                }
+                return
+            }
+            
+            resolveSuggestionForDisplay(bonusSuggestion) { _, displayText, artURL, linkURL in
+                surpriseAlbumArtURL = artURL
+                surpriseAlbumURL = linkURL
+                surpriseSong = displayText
+                loadingMessage = nil
+            }
+        }
+    }
+
+    private func launchSurpriseFlow() {
+        guard canRequestSurprise else { return }
+        // Let the primary card dismiss before presenting the surprise card.
+        withAnimation {
+            suggestedSong = nil
+            albumArtURL = nil
+            albumURL = nil
+        }
+        let delay: DispatchTimeInterval = .milliseconds(320)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            fetchSurpriseSong()
+        }
+    }
+
+    private func resolveSuggestionForDisplay(
+        _ suggestion: SongSuggestion,
+        completion: @escaping (SongSuggestion, String, URL?, URL?) -> Void
+    ) {
+        func finish(_ resolved: SongSuggestion, artURL: URL?, linkURL: URL?) {
+            let displayText = "\(resolved.title) - \(resolved.artist)"
             DispatchQueue.main.async {
-                isLoading = false
-                if let suggestion = result {
-                    if preferredMusicProvider == "Apple Music" {
-                        APIService.searchSongOniTunes(song: suggestion.title, artist: suggestion.artist) { itunesResult in
-                            DispatchQueue.main.async {
-                                if let itunesResult = itunesResult {
-                                    self.albumArtURL = URL(string: itunesResult.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
-                                    self.albumURL = URL(string: itunesResult.trackViewUrl)
-                                    // Show **exactly** what we got back from Apple Music:
-                                    let fullSuggestion = "\(itunesResult.trackName) - \(itunesResult.artistName)"
-                                    self.suggestedSong = fullSuggestion
-                                    saveTodayAsCheckedIn()
-                                    let history = SongHistoryManager.loadHistory()
-                                    self.pastWeek = buildPastLog(from: history, daysBack: 7)
-                                } else {
-                                    // If Apple returned nothing, fall back to the OpenAI suggestion
-                                    self.albumArtURL = nil
-                                    self.albumURL = nil
-                                    self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
-                                    saveTodayAsCheckedIn()
-                                    let history = SongHistoryManager.loadHistory()
-                                    self.pastWeek = buildPastLog(from: history, daysBack: 7)
-                                }
-                            }
-                        }
-                    } else {
-                        // First search iTunes for cleaned title/artist, then search Spotify
-                        APIService.searchSongOniTunes(song: suggestion.title, artist: suggestion.artist) { itunesResult in
-                            DispatchQueue.main.async {
-                                if let itunesResult = itunesResult {
-                                    // Use cleaned iTunes result to search Spotify
-                                    APIService.searchSongOnSpotify(song: itunesResult.trackName, artist: itunesResult.artistName) { coverURL, spotifyLink in
-                                        DispatchQueue.main.async {
-                                            self.albumArtURL = coverURL != nil ? URL(string: coverURL!) : nil
-                                            self.albumURL = spotifyLink != nil ? URL(string: spotifyLink!) : nil
-                                            self.suggestedSong = "\(itunesResult.trackName) - \(itunesResult.artistName)"
-                                            saveTodayAsCheckedIn()
-                                            let history = SongHistoryManager.loadHistory()
-                                            self.pastWeek = buildPastLog(from: history, daysBack: 7)
-                                        }
-                                    }
-                                } else {
-                                    // Fallback: use original suggestion if iTunes fails
-                                    self.albumArtURL = nil
-                                    self.albumURL = nil
-                                    self.suggestedSong = "\(suggestion.title) - \(suggestion.artist)"
-                                    saveTodayAsCheckedIn()
-                                    let history = SongHistoryManager.loadHistory()
-                                    self.pastWeek = buildPastLog(from: history, daysBack: 7)
-                                }
-                            }
-                        }
+                completion(resolved, displayText, artURL, linkURL)
+            }
+        }
+        
+        if preferredMusicProvider == "Apple Music" {
+            APIService.searchSongOniTunes(song: suggestion.title, artist: suggestion.artist) { itunesResult in
+                if let itunesResult = itunesResult {
+                    let corrected = SongSuggestion(title: itunesResult.trackName, artist: itunesResult.artistName)
+                    let artURL = URL(string: itunesResult.artworkUrl100.replacingOccurrences(of: "100x100bb.jpg", with: "500x500bb.jpg"))
+                    let trackURL = URL(string: itunesResult.trackViewUrl)
+                    finish(corrected, artURL: artURL, linkURL: trackURL)
+                } else {
+                    finish(suggestion, artURL: nil, linkURL: nil)
+                }
+            }
+        } else {
+            APIService.searchSongOniTunes(song: suggestion.title, artist: suggestion.artist) { itunesResult in
+                if let itunesResult = itunesResult {
+                    let corrected = SongSuggestion(title: itunesResult.trackName, artist: itunesResult.artistName)
+                    APIService.searchSongOnSpotify(song: corrected.title, artist: corrected.artist) { coverURL, spotifyLink in
+                        let artURL = coverURL.flatMap { URL(string: $0) }
+                        let linkURL = spotifyLink.flatMap { URL(string: $0) }
+                        finish(corrected, artURL: artURL, linkURL: linkURL)
+                    }
+                } else {
+                    APIService.searchSongOnSpotify(song: suggestion.title, artist: suggestion.artist) { coverURL, spotifyLink in
+                        let artURL = coverURL.flatMap { URL(string: $0) }
+                        let linkURL = spotifyLink.flatMap { URL(string: $0) }
+                        finish(suggestion, artURL: artURL, linkURL: linkURL)
                     }
                 }
             }
         }
+    }
+
+    private func resetSurpriseState() {
+        surpriseSong = nil
+        surpriseAlbumArtURL = nil
+        surpriseAlbumURL = nil
     }
 
     func saveTodayAsCheckedIn() {
@@ -430,11 +548,28 @@ struct ContentView: View {
 }
 
 struct SongSuggestionCard: View {
+    let headline: String
     let title: String
     let artist: String
     let albumArtURL: URL?
     let albumURL: URL?
     let onClose: () -> Void
+
+    init(
+        headline: String = "Today's Pick🔥",
+        title: String,
+        artist: String,
+        albumArtURL: URL?,
+        albumURL: URL?,
+        onClose: @escaping () -> Void
+    ) {
+        self.headline = headline
+        self.title = title
+        self.artist = artist
+        self.albumArtURL = albumArtURL
+        self.albumURL = albumURL
+        self.onClose = onClose
+    }
 
     @Environment(\.openURL) private var openURL
     @Environment(\.colorScheme) private var colorScheme
@@ -444,7 +579,7 @@ struct SongSuggestionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Today's Pick🔥")
+                Text(headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
 
