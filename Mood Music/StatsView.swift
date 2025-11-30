@@ -12,11 +12,12 @@ struct StatsView: View {
     @Environment(\.colorScheme) var colorScheme
 
     @State private var cards: [StatCard] = [
-        StatCard(title: "Mood Frequency", type: .comingSoon, icon: "dice"),
-        StatCard(title: "Streaks", type: .comingSoon, icon: "fire"),
-        StatCard(title: "Weekly Mood Balance", type: .comingSoon, icon: "jukebox"),
-        StatCard(title: "Day of Week", type: .comingSoon, icon: "jukebox"),
-        StatCard(title: "30-Day Mood Logs", type: .calendar, icon: "calender")
+//        StatCard(title: "Mood Frequency", type: .comingSoon, icon: "dice"),
+//        StatCard(title: "Streaks", type: .comingSoon, icon: "fire"),
+//        StatCard(title: "Weekly Mood Balance", type: .comingSoon, icon: "jukebox"),
+//        StatCard(title: "Day of Week", type: .comingSoon, icon: "jukebox"),
+        StatCard(title: "More Absolute Fire Stuff...", type: .comingSoon, icon: "fire"),
+        StatCard(title: "Month Mood Logs", type: .calendar, icon: "calender")
     ]
     
     @State private var selectedHistoryEntry: SongSuggestionHistoryEntry?
@@ -88,27 +89,17 @@ struct StatsView: View {
             }
         }
         .animation(.spring(response: 0.8, dampingFraction: 0.8), value: suggestedSong != nil)
-        .overlay(alignment: .bottomTrailing) {
-            Button(action: {
-                generateExport()
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.and.arrow.down.on.square.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(themeColors.first ?? .gray.opacity(0.3))
-                    Text(isExporting ? "Preparing..." : "Export")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(themeColors.first ?? .gray.opacity(0.3))
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    generateExport()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial)
-                .cornerRadius(14)
-                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+                .disabled(isExporting)
             }
-            .padding(.trailing, 22)
-            .padding(.bottom, 2)
-            .disabled(isExporting)
         }
         .sheet(isPresented: $showShareSheet) {
             if let url = exportURL {

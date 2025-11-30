@@ -43,7 +43,7 @@ struct ExportManager {
             try renderer.writePDF(to: url) { ctx in
                 // Cover
                 ctx.beginPage()
-                drawCover(on: ctx, in: pageRect, monthTitle: monthTitle)
+                drawCover(on: ctx, in: pageRect, monthTitle: monthTitle, countsByMood: countsByMood)
                 
                 // Calendar
                 ctx.beginPage()
@@ -61,20 +61,24 @@ struct ExportManager {
     }
     
     // MARK: - Drawing helpers
-    private static func drawCover(on ctx: UIGraphicsPDFRendererContext, in rect: CGRect, monthTitle: String) {
-        let title = "Your \(monthTitle)\nMoodMusic Timeline"
+    private static func drawCover(on ctx: UIGraphicsPDFRendererContext, in rect: CGRect, monthTitle: String, countsByMood: [String: Int]) {
+        let title = "Your \(monthTitle)\nMoodMusic Recap"
         let subtitle = "A keepsake of your moods, moments, and songs."
         
         let background = UIBezierPath(rect: rect)
         UIColor.white.setFill()
         background.fill()
         
+        let sortedMoods = countsByMood.sorted { $0.value > $1.value }
+        let topMoodColor = UIColor(moodTextColours[sortedMoods.first?.key ?? ""] ?? .gray)
+        let secondMoodColor = UIColor(moodTextColours[sortedMoods.dropFirst().first?.key ?? ""] ?? Color.gray)
+        
         let topBlob = UIBezierPath(ovalIn: CGRect(x: rect.midX - 200, y: -80, width: 420, height: 240))
-        UIColor(red: 0.65, green: 0.9, blue: 0.88, alpha: 1.0).setFill()
+        topMoodColor.withAlphaComponent(0.7).setFill()
         topBlob.fill()
         
         let bottomBlob = UIBezierPath(ovalIn: CGRect(x: -120, y: rect.maxY - 260, width: 380, height: 220))
-        UIColor(red: 1.0, green: 0.76, blue: 0.86, alpha: 1.0).setFill()
+        secondMoodColor.withAlphaComponent(0.7).setFill()
         bottomBlob.fill()
         
         let titleStyle = NSMutableParagraphStyle()
@@ -136,7 +140,7 @@ struct ExportManager {
                 .foregroundColor: UIColor.darkGray,
                 .paragraphStyle: weekdayStyle
             ]
-            let x = margin + CGFloat(index) * cellWidth
+            let x = margin + CGFloat(index) * (cellWidth + 6)
             let y = gridTop
             let abbrev = String(symbol.uppercased().prefix(2))
             abbrev.draw(in: CGRect(x: x, y: y, width: cellWidth, height: 16), withAttributes: attributes)
@@ -151,9 +155,15 @@ struct ExportManager {
             .paragraphStyle: weekdayStyle
         ]
         
+        let dayNumberLightAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 13, weight: .semibold),
+            .foregroundColor: UIColor.white,
+            .paragraphStyle: weekdayStyle
+        ]
+        
         for day in range {
             guard let date = calendar.date(byAdding: .day, value: day - 1, to: startOfMonth) else { continue }
-            let position = day + normalizedFirstWeekday
+            let position = day + normalizedFirstWeekday - 1
             let row = (position) / 7
             let column = position % 7
             
@@ -162,24 +172,25 @@ struct ExportManager {
             let cellRect = CGRect(x: x, y: y, width: cellWidth, height: cellHeight)
             
             let dayPath = UIBezierPath(roundedRect: cellRect, cornerRadius: 12)
-            UIColor(white: 0.95, alpha: 1.0).setFill()
-            dayPath.fill()
-            
-            let borderPath = UIBezierPath(roundedRect: cellRect, cornerRadius: 12)
-            UIColor.lightGray.withAlphaComponent(0.4).setStroke()
-            borderPath.lineWidth = 0.7
-            borderPath.stroke()
-            
-            let dayString = "\(day)"
-            dayString.draw(in: CGRect(x: x, y: y + 6, width: cellWidth, height: 18), withAttributes: dayNumberAttributes)
             
             if let entry = entriesByDay[calendar.startOfDay(for: date)] {
                 let color = UIColor(moodTextColours[entry.emoji] ?? .gray)
-                let circleSize: CGFloat = 20
-                let circleRect = CGRect(x: x + (cellWidth - circleSize) / 2, y: y + (cellHeight / 2) - (circleSize / 2), width: circleSize, height: circleSize)
-                let circlePath = UIBezierPath(ovalIn: circleRect)
                 color.setFill()
-                circlePath.fill()
+                dayPath.fill()
+                
+                let dayString = "\(day)"
+                dayString.draw(in: CGRect(x: x, y: y + 6, width: cellWidth, height: 18), withAttributes: dayNumberLightAttributes)
+            } else {
+                UIColor(white: 0.95, alpha: 1.0).setFill()
+                dayPath.fill()
+                
+                let borderPath = UIBezierPath(roundedRect: cellRect, cornerRadius: 12)
+                UIColor.lightGray.withAlphaComponent(0.4).setStroke()
+                borderPath.lineWidth = 0.7
+                borderPath.stroke()
+                
+                let dayString = "\(day)"
+                dayString.draw(in: CGRect(x: x, y: y + 6, width: cellWidth, height: 18), withAttributes: dayNumberAttributes)
             }
         }
     }
@@ -256,7 +267,7 @@ struct ExportManager {
             for entry in entries {
                 let emojiIcon = emoji(for: entry.emoji)
                 let dateString = dateFormatter.string(from: entry.date)
-                let line = "\(dateString)  \(emojiIcon)  \(entry.title) — \(entry.artist)"
+                let line = "\(dateString)  \(entry.title) — \(entry.artist)"
                 let lineAttributes: [NSAttributedString.Key: Any] = [
                     .font: UIFont.systemFont(ofSize: 13, weight: .semibold),
                     .foregroundColor: UIColor.black

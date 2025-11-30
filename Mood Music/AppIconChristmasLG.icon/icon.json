@@ -1,0 +1,30 @@
+{
+  "fill" : {
+    "solid" : "display-p3:0.60642,0.45585,0.28231,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "Gemini_Generated_Image_lpl7yjlpl7yjlpl7 (1).png",
+          "name" : "Gemini_Generated_Image_lpl7yjlpl7yjlpl7 (1)"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

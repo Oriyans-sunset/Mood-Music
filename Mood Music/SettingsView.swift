@@ -35,6 +35,9 @@ struct SettingsView: View {
     
     @State private var showingPaywall = false
     @State private var currentOffering: RevenueCat.Offering?
+    @State private var pendingThemeSelection: AppTheme?
+    @State private var isFetchingOffering = false
+    @State private var paywallError: String?
     
     var body: some View {
 
@@ -79,22 +82,33 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity)
                 .listRowBackground(Color.clear)
             }
-
-            Section(header: Text("About")) {
-
-                HStack {
-                    Text("App Version")
-                    Spacer()
-                    Text(
-                        Bundle.main.infoDictionary?[
-                            "CFBundleShortVersionString"
-                        ] as? String ?? "N/A"
-                    )
-                    .foregroundColor(.gray)
+            
+            if !themeManager.isPremiumUnlocked {
+                Section {
+                    Button(action: {
+                        showingPaywall = true
+                        if currentOffering == nil {
+                            fetchOfferingsIfNeeded()
+                        }
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Upgrade to Extra ✨")
+                                    .fontWeight(.semibold)
+                                Text("Unlock premium themes, stats, and exports.")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.up.dotted.2")
+                                .foregroundColor(.blue)
+                        }
+                        .padding(.vertical, 6)
+                    }
                 }
             }
             
-            Section(header: Text("Daily Mood Reminder")) {
+            Section(header: Text("Daily Log Reminder")) {
                 Toggle("Enable Reminder", isOn: $notificationsEnabled)
                     .onChange(of: notificationsEnabled) { isOn in
                         if isOn {
@@ -163,26 +177,19 @@ struct SettingsView: View {
                             Image(systemName: "checkmark")
                                 .foregroundColor(.blue)
                         }
-                        if theme.isPremium {
+                        if theme.isPremium && !themeManager.isPremiumUnlocked {
                             Image(systemName: "lock.fill")
                                 .foregroundColor(.gray)
                         }
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        themeManager.trySelectTheme(theme) { unlocked in
-                            if !unlocked {
-                                showingPaywall = true
-                            } else {
-                                let generator = UIImpactFeedbackGenerator(style: .light)
-                                generator.impactOccurred()
-                            }
-                        }
+                        handleThemeTap(theme)
                     }
                 }
             }
-
-            Section(header: Text("Check out my other app")) {
+            
+            Section(header: Text("Check Out My Other App")) {
                 HStack(alignment: .center, spacing: 16) {
                     Image("tagtrail")
                         .resizable()
@@ -266,6 +273,20 @@ struct SettingsView: View {
                 )
             }
             
+            Section(header: Text("About")) {
+
+                HStack {
+                    Text("App Version")
+                    Spacer()
+                    Text(
+                        Bundle.main.infoDictionary?[
+                            "CFBundleShortVersionString"
+                        ] as? String ?? "N/A"
+                    )
+                    .foregroundColor(.gray)
+                }
+            }
+            
             Text("Shout out to my best friend for the design inspiration!💛")
                 .font(.footnote)
                 .foregroundColor(.gray)
@@ -291,9 +312,7 @@ struct SettingsView: View {
         )
         .onAppear {
             //load offering on appear
-            Purchases.shared.getOfferings { offerings, _ in
-                    currentOffering = offerings?.current
-                }
+            fetchOfferingsIfNeeded()
             
             UNUserNotificationCenter.current().getNotificationSettings { settings in
                 DispatchQueue.main.async {
@@ -317,9 +336,81 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             if let offering = currentOffering {
-                PaywallView(offering: offering)
+                if offering.availablePackages.isEmpty {
+                    VStack(spacing: 12) {
+                        Text("Purchases unavailable right now.")
+                            .font(.headline)
+                        Text("No purchase packages are currently available. Please try again later.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("Close") {
+                            showingPaywall = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .padding()
+                } else {
+                    PaywallView(offering: offering)
+                        .onPurchaseCompleted { customerInfo in
+                            print("RC purchase entitlements - all: \(customerInfo.entitlements.all.keys), active: \(customerInfo.entitlements.active.keys)")
+                            let isUnlocked = ThemeManager.premiumActive(from: customerInfo)
+                            themeManager.isPremiumUnlocked = isUnlocked
+                            
+                            if isUnlocked {
+                                showingPaywall = false
+                                // If unlocked, apply pending theme
+                                if let pending = pendingThemeSelection {
+                                    themeManager.selectTheme(pending)
+                                    pendingThemeSelection = nil
+                                    showThemeChangedToast = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                                        withAnimation(.easeOut(duration: 0.25)) {
+                                            showThemeChangedToast = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .onRestoreCompleted { customerInfo in
+                            print("RC restore entitlements - all: \(customerInfo.entitlements.all.keys), active: \(customerInfo.entitlements.active.keys)")
+                            let isUnlocked = ThemeManager.premiumActive(from: customerInfo)
+                            themeManager.isPremiumUnlocked = isUnlocked
+                            
+                            if isUnlocked {
+                                showingPaywall = false
+                                // If unlocked, apply pending theme
+                                if let pending = pendingThemeSelection {
+                                    themeManager.selectTheme(pending)
+                                    pendingThemeSelection = nil
+                                    showThemeChangedToast = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                                        withAnimation(.easeOut(duration: 0.25)) {
+                                            showThemeChangedToast = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .onDisappear {
+                            // Refresh entitlements after paywall closes, then apply if unlocked
+                            themeManager.refreshEntitlements {
+                                if themeManager.isPremiumUnlocked, let pending = pendingThemeSelection {
+                                    themeManager.selectTheme(pending)
+                                    pendingThemeSelection = nil
+                                    showThemeChangedToast = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                                        withAnimation(.easeOut(duration: 0.25)) {
+                                            showThemeChangedToast = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                }
             } else {
                 Text("Loading...")
+                    .onAppear { fetchOfferingsIfNeeded() }
             }
         }
         .sheet(isPresented: $showingPrivacy) {
@@ -356,8 +447,54 @@ struct SettingsView: View {
             }
             .padding()
         }
+        .alert("Paywall unavailable", isPresented: Binding(get: { paywallError != nil }, set: { _ in paywallError = nil })) {
+            Button("OK", role: .cancel) { paywallError = nil }
+        } message: {
+            Text(paywallError ?? "Something went wrong. Please try again.")
+        }
     }
     
+}
+
+// MARK: - Helpers
+extension SettingsView {
+    private func handleThemeTap(_ theme: AppTheme) {
+        themeManager.trySelectTheme(theme) { unlocked in
+            if unlocked {
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.impactOccurred()
+            } else {
+                pendingThemeSelection = theme
+                showingPaywall = true
+                if currentOffering == nil {
+                    fetchOfferingsIfNeeded()
+                }
+            }
+        }
+    }
+    
+    private func fetchOfferingsIfNeeded() {
+        guard !isFetchingOffering else { return }
+        isFetchingOffering = true
+        Purchases.shared.getOfferings { offerings, error in
+            DispatchQueue.main.async {
+                isFetchingOffering = false
+                if let offering = offerings?.current {
+                    if offering.availablePackages.isEmpty {
+                        currentOffering = nil
+                        paywallError = "No purchase options available right now. Please try again later."
+                        showingPaywall = false
+                    } else {
+                        currentOffering = offering
+                    }
+                } else if let error = error {
+                    paywallError = error.localizedDescription
+                } else {
+                    paywallError = "Unable to load paywall right now."
+                }
+            }
+        }
+    }
 }
 
 #Preview {

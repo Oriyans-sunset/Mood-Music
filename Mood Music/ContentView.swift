@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import RevenueCat
+import RevenueCatUI
 
 enum Route: Hashable {
     case settings
@@ -36,6 +38,12 @@ struct ContentView: View {
     @State private var lastMoodText: String? = nil
     @State private var mainSuggestion: SongSuggestion? = nil
     
+    @State private var showPaywall: Bool = false
+    @State private var currentOffering: RevenueCat.Offering?
+    @State private var isFetchingOffering: Bool = false
+    @State private var pendingPremiumAction: PendingPremiumAction?
+    @State private var paywallError: String?
+    
     // used multiple times so we made it a var
     private static let lastCheckInKey = "lastCheckInDate"
     
@@ -57,6 +65,7 @@ struct ContentView: View {
     // varible defined for opneing external links
     @Environment(\.openURL) private var openURL
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     //Color.black.opacity(0.1), Color.purple.opacity(0.7)]
     //[Color.blue.opacity(0.7), Color.purple.opacity(0.7), Color.teal.opacity(0.6)]
     
@@ -87,11 +96,16 @@ struct ContentView: View {
                     endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
+                FestiveGarlandOverlay()
+                if !reduceMotion {
+                    FestiveSnowOverlay(colorScheme: colorScheme)
+                        .allowsHitTesting(false)
+                }
                 
                 VStack(spacing: 40) {
                     ZStack {
                         // Center the heading text
-                        Text("How are you feeling today?")
+                        Text("How are you feeling today?🎄")
                             .multilineTextAlignment(.center)
                             .font(.custom("Pacifico-Regular", size: 50))
                             .fontWeight(.bold)
@@ -104,7 +118,9 @@ struct ContentView: View {
                         VStack {
                             HStack {
                                 Button(action: {
-                                    path.append(Route.stats)
+                                    handlePremiumAction(.openStats) {
+                                        path.append(Route.stats)
+                                    }
                                 }) {
                                     Image(systemName: "calendar")
                                         .font(.system(size: 20, weight: .medium))
@@ -168,7 +184,7 @@ struct ContentView: View {
                             }) {
                                 VStack(spacing: 8){
                                     Text(emoji)
-                                        .font(.system(size: 50))
+                                        .font(.system(size: 50, design: .rounded))
                                         .frame(width: 100, height: 100)
                                         .background(
                                             LinearGradient(
@@ -265,7 +281,7 @@ struct ContentView: View {
                         }
                     }) {
                         Text(hasSubmittedToday ? "Come back tomorrow!" : "Submit")
-                            .font(.system(size: 20))
+                            .font(.system(size: 20, design: .rounded))
                             .fontWeight(.bold)
                             .foregroundColor(themeManager.selectedTheme.buttonTextColor)
                             .frame(maxWidth: .infinity)
@@ -307,12 +323,14 @@ struct ContentView: View {
                                     }
                                 })
 
-                                if canRequestSurprise {
-                                    Button(action: {
+                            if canRequestSurprise {
+                                Button(action: {
+                                    handlePremiumAction(.surprise) {
                                         launchSurpriseFlow()
-                                    }) {
-                                        HStack(alignment: .center, spacing: 12) {
-                                            Image(systemName: "die.face.5.fill")
+                                    }
+                                }) {
+                                    HStack(alignment: .center, spacing: 12) {
+                                        Image(systemName: "die.face.5.fill")
                                                 .font(.system(size: 22, weight: .semibold))
                                                 .padding(10)
                                                 .background(Color.white.opacity(0.2))
@@ -406,7 +424,56 @@ struct ContentView: View {
                     tagTrailURL: URL(string: tagTrailURLString),
                     onClose: { showUpdateSheet = false }
                 )
-                .presentationDetents([.medium])
+                .presentationDetents([.fraction(0.9), .large])
+            }
+            .sheet(isPresented: $showPaywall) {
+                if let offering = currentOffering {
+                    if offering.availablePackages.isEmpty {
+                        VStack(spacing: 12) {
+                            Text("Purchases unavailable right now.")
+                                .font(.headline)
+                            Text("No purchase packages are currently available. Please try again later.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                            Button("Close") {
+                                showPaywall = false
+                                paywallError = "No purchase options available right now. Please try again later."
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding()
+                    } else {
+                        PaywallView(offering: offering)
+                            .onPurchaseCompleted { customerInfo in
+                                print("RC purchase entitlements - all: \(customerInfo.entitlements.all.keys), active: \(customerInfo.entitlements.active.keys)")
+                                let isUnlocked = ThemeManager.premiumActive(from: customerInfo)
+                                themeManager.isPremiumUnlocked = isUnlocked
+                                if isUnlocked {
+                                    showPaywall = false
+                                }
+                            }
+                            .onRestoreCompleted { customerInfo in
+                                print("RC restore entitlements - all: \(customerInfo.entitlements.all.keys), active: \(customerInfo.entitlements.active.keys)")
+                                let isUnlocked = ThemeManager.premiumActive(from: customerInfo)
+                                themeManager.isPremiumUnlocked = isUnlocked
+                                if isUnlocked {
+                                    showPaywall = false
+                                }
+                            }
+                            .onDisappear {
+                                refreshPremiumStateAndRunPending()
+                            }
+                    }
+                } else {
+                    Text("Loading...")
+                        .onAppear { fetchOfferingsIfNeeded() }
+                }
+            }
+            .alert("Paywall unavailable", isPresented: Binding(get: { paywallError != nil }, set: { _ in paywallError = nil })) {
+                Button("OK", role: .cancel) { paywallError = nil }
+            } message: {
+                Text(paywallError ?? "Something went wrong. Please try again.")
             }
         }
         
@@ -478,6 +545,62 @@ struct ContentView: View {
         }
     }
 
+    private func handlePremiumAction(_ action: PendingPremiumAction, perform: @escaping () -> Void) {
+        if themeManager.isPremiumUnlocked {
+            perform()
+        } else {
+            pendingPremiumAction = action
+            showPaywall = true
+            if currentOffering == nil {
+                fetchOfferingsIfNeeded()
+            }
+        }
+    }
+
+    private func refreshPremiumStateAndRunPending() {
+        themeManager.refreshEntitlements {
+            guard themeManager.isPremiumUnlocked, let pending = pendingPremiumAction else {
+                pendingPremiumAction = nil
+                return
+            }
+            pendingPremiumAction = nil
+            switch pending {
+            case .openStats:
+                path.append(Route.stats)
+            case .surprise:
+                launchSurpriseFlow()
+            }
+        }
+    }
+
+    private func fetchOfferingsIfNeeded() {
+        guard !isFetchingOffering else { return }
+        isFetchingOffering = true
+        Purchases.shared.getOfferings { offerings, error in
+            DispatchQueue.main.async {
+                isFetchingOffering = false
+                if let offering = offerings?.current {
+                    if offering.availablePackages.isEmpty {
+                        currentOffering = nil
+                        paywallError = "No purchase options available right now. Please try again later."
+                        showPaywall = false
+                    } else {
+                        currentOffering = offering
+                    }
+                } else if let error = error {
+                    paywallError = error.localizedDescription
+                } else {
+                    paywallError = "Unable to load paywall right now."
+                }
+            }
+        }
+    }
+
+    enum PendingPremiumAction {
+        case openStats
+        case surprise
+    }
+
     private func resolveSuggestionForDisplay(
         _ suggestion: SongSuggestion,
         completion: @escaping (SongSuggestion, String, URL?, URL?) -> Void
@@ -545,6 +668,85 @@ struct ContentView: View {
         generator.impactOccurred()
     }
     
+}
+
+// MARK: - Festive decorations
+private struct FestiveGarlandOverlay: View {
+    var body: some View {
+        ZStack {
+            RadialGradient(
+                colors: [
+                    Color(red: 0.12, green: 0.35, blue: 0.22).opacity(0.28),
+                    .clear
+                ],
+                center: .topLeading,
+                startRadius: 10,
+                endRadius: 260
+            )
+            .ignoresSafeArea()
+            
+            RadialGradient(
+                colors: [
+                    Color(red: 0.78, green: 0.60, blue: 0.18).opacity(0.20),
+                    .clear
+                ],
+                center: .topTrailing,
+                startRadius: 10,
+                endRadius: 220
+            )
+            .ignoresSafeArea()
+        }
+    }
+}
+
+private struct FestiveSnowOverlay: View {
+    let colorScheme: ColorScheme
+    @State private var drift = false
+    private let snowflakes: [Snowflake] = (0..<14).map { _ in Snowflake() }
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                ForEach(0..<snowflakes.count, id: \.self) { index in
+                    let flake = snowflakes[index]
+                    Circle()
+                        .fill(Color.white.opacity(colorScheme == .light ? 0.38 : 0.24))
+                        .frame(width: flake.size, height: flake.size)
+                        .position(x: flake.x(in: geo.size),
+                                  y: flake.y(in: geo.size, drift: drift))
+                        .blur(radius: flake.blur)
+                        .animation(
+                            Animation.linear(duration: flake.duration)
+                                .repeatForever(autoreverses: false)
+                                .delay(flake.delay),
+                            value: drift
+                        )
+                }
+            }
+            .onAppear { drift = true }
+        }
+        .allowsHitTesting(false)
+    }
+    
+    private struct Snowflake {
+        let seedX = Double.random(in: 0...1)
+        let seedY = Double.random(in: 0...1)
+        let speed = Double.random(in: 0.08...0.16)
+        let size = Double.random(in: 2.5...5.5)
+        let blur = Double.random(in: 0...1.5)
+        let delay = Double.random(in: 0...2.0)
+        
+        var duration: Double { 10 / speed }
+        
+        func x(in size: CGSize) -> CGFloat {
+            CGFloat(seedX) * size.width
+        }
+        
+        func y(in size: CGSize, drift: Bool) -> CGFloat {
+            let base = CGFloat(seedY) * size.height
+            return drift ? base + size.height * 0.15 : base
+        }
+    }
 }
 
 struct SongSuggestionCard: View {
