@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		74B461FF2E6198970082910E /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 74B461FE2E6198970082910E /* RevenueCat */; };
+		74B462012E6198970082910E /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = 74B462002E6198970082910E /* RevenueCatUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		74543B0B2DB95DEC00FD2F6F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				74B462012E6198970082910E /* RevenueCatUI in Frameworks */,
+				74B461FF2E6198970082910E /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = "Mood Music";
 			packageProductDependencies = (
+				74B461FE2E6198970082910E /* RevenueCat */,
+				74B462002E6198970082910E /* RevenueCatUI */,
 			);
 			productName = "Mood Music";
 			productReference = 74543AFA2DB95DE900FD2F6F /* Mood Music.app */;
@@ -195,6 +204,9 @@
 			);
 			mainGroup = 74543AF12DB95DE900FD2F6F;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				74B461FD2E6198970082910E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 74543AFB2DB95DE900FD2F6F /* Products */;
 			projectDirPath = "";
@@ -399,7 +411,7 @@
 			baseConfigurationReferenceAnchor = 74543AFC2DB95DE900FD2F6F /* Mood Music */;
 			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconChristmasLG;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -434,7 +446,7 @@
 			baseConfigurationReferenceAnchor = 74543AFC2DB95DE900FD2F6F /* Mood Music */;
 			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconChristmasLG;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -584,6 +596,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		74B461FD2E6198970082910E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.36.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		74B461FE2E6198970082910E /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74B461FD2E6198970082910E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		74B462002E6198970082910E /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74B461FD2E6198970082910E /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 74543AF22DB95DE900FD2F6F /* Project object */;
 }
