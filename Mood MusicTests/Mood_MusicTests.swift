@@ -6,6 +6,7 @@
 //
 import Foundation
 import Testing
+import CoreData
 @testable import Mood_Music
 
 struct Mood_MusicTests {
@@ -14,6 +15,10 @@ struct Mood_MusicTests {
     /// and that duplicates are correctly identified by the SongHistoryManager.
     @Test
     func testAddAndCheckDuplicate() async throws {
+        // Use an in-memory store so we don't touch the real data.
+        let container = PersistenceController.makeInMemoryContainer()
+        SongHistoryManager.configure(container: container)
+
         let testEntry = SongSuggestionHistoryEntry(title: "Test Song", artist: "Test Artist", date: Date(), emoji: "Happy")
 
         // Clear history first
